@@ -1,0 +1,179 @@
+using FrooxEngine;
+using UnityEngine;
+using UnityFrooxEngineRunner;
+
+namespace Thundagun.NewConnectors
+{
+    public class SlotConnector : Connector<Slot>, ISlotConnector
+    {
+        public byte ForceLayer;
+        public Transform Transform;
+        public ushort GameObjectRequests;
+        public bool ShouldDestroy;
+
+        public bool Active;
+        public Vector3 Position;
+        public Quaternion Rotation;
+        public Vector3 Scale;
+        public SlotConnector ParentConnector;
+
+        public static IConnector<Slot> Constructor() => new SlotConnector();
+
+        public WorldConnector WorldConnector => (WorldConnector) World.Connector;
+
+        public GameObject GeneratedGameObject { get; private set; }
+
+        public int Layer => GeneratedGameObject == null ? 0 : GeneratedGameObject.layer;
+
+        public GameObject ForceGetGameObject()
+        {
+            if (GeneratedGameObject == null)
+                GenerateGameObject();
+            return GeneratedGameObject;
+        }
+        public GameObject RequestGameObject()
+        {
+            ++GameObjectRequests;
+            return ForceGetGameObject();
+        }
+        public void FreeGameObject()
+        {
+            --GameObjectRequests;
+            TryDestroy();
+        }
+
+        public void TryDestroy(bool destroyingWorld = false)
+        {
+            if (!ShouldDestroy || GameObjectRequests != 0)
+                return;
+            if (!destroyingWorld)
+            {
+                if ((bool) (Object) GeneratedGameObject)
+                    Object.Destroy(GeneratedGameObject);
+                ParentConnector?.FreeGameObject();
+            }
+            GeneratedGameObject = null;
+            Transform = null;
+            ParentConnector = null;
+        }
+
+        private void GenerateGameObject()
+        {
+            GeneratedGameObject = new GameObject("");
+            Transform = GeneratedGameObject.transform;
+            UpdateParent();
+            UpdateLayer();
+            SetData();
+        }
+        private void UpdateParent()
+        {
+            var gameObject = ParentConnector != null ? ParentConnector.RequestGameObject() : WorldConnector.WorldRoot;
+            Transform.SetParent(gameObject.transform, false);
+        }
+        public void UpdateLayer()
+        {
+            var layer = ForceLayer <= 0 ? Transform.parent.gameObject.layer : ForceLayer;
+            if (layer == GeneratedGameObject.layer)
+                return;
+            SetHiearchyLayer(GeneratedGameObject, layer);
+        }
+        public static void SetHiearchyLayer(GameObject root, int layer)
+        {
+            root.layer = layer;
+            for (var index = 0; index < root.transform.childCount; ++index)
+                SetHiearchyLayer(root.transform.GetChild(index).gameObject, layer);
+        }
+        public override void Initialize()
+        {
+        }
+
+        public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new SlotApplyChangesPacket(this));
+
+        public void SetData()
+        {
+            GeneratedGameObject.SetActive(Active);
+            var transform = Transform;
+            transform.localPosition = Position;
+            transform.localRotation = Rotation;
+            transform.localScale = Scale;
+        }
+        
+        public override void Destroy(bool destroyingWorld) =>
+            Thundagun.CurrentPackets.Add(new SlotDestroyPacket(this, destroyingWorld));
+    }
+
+    public class SlotApplyChangesPacket : UpdatePacket<SlotConnector>
+    {
+        public bool Reparent;
+        public SlotConnector NewParentSlot;
+        public bool ActiveChanged;
+        public bool Active;
+        public bool PositionChanged;
+        public Vector3 Position;
+        public bool RotationChanged;
+        public Quaternion Rotation;
+        public bool ScaleChanged;
+        public Vector3 Scale;
+            
+        public SlotApplyChangesPacket(SlotConnector owner) : base(owner)
+        {
+            var o = owner.Owner;
+            var parent = o.Parent;
+            if (parent?.Connector != owner.ParentConnector && parent != null)
+            {
+                Reparent = true;
+                NewParentSlot = o.Parent.Connector as SlotConnector;
+            }
+
+            ActiveChanged = o.ActiveSelf_Field.GetWasChangedAndClear();
+            Active = o.ActiveSelf;
+            PositionChanged = o.Position_Field.GetWasChangedAndClear();
+            Position = o.Position_Field.Value.ToUnity();
+            ScaleChanged = o.Scale_Field.GetWasChangedAndClear();
+            Scale = o.Scale_Field.Value.ToUnity();
+        }
+
+        public override void Update()
+        {
+            Owner.Active = Active;
+            Owner.Position = Position;
+            Owner.Rotation = Rotation;
+            Owner.Scale = Scale;
+            
+            var generatedGameObject = Owner.GeneratedGameObject;
+            if (!(generatedGameObject != null))
+                return;
+            
+            if (Reparent)
+            {
+                Owner.ParentConnector?.FreeGameObject();
+                GameObject gameObject;
+                if (NewParentSlot != null)
+                {
+                    Owner.ParentConnector = NewParentSlot;
+                    gameObject = Owner.ParentConnector.RequestGameObject();
+                }
+                else gameObject = Owner.WorldConnector.WorldRoot;
+                Owner.Transform.SetParent(gameObject.transform, false);
+            }
+            
+            Owner.UpdateLayer();
+            Owner.SetData();
+        }
+    }
+
+    public class SlotDestroyPacket : UpdatePacket<SlotConnector>
+    {
+        public bool DestroyingWorld;
+        public SlotDestroyPacket(SlotConnector owner, bool destroyingWorld) : base(owner)
+        {
+            DestroyingWorld = destroyingWorld;
+        }
+
+        public override void Update()
+        {
+            Owner.ShouldDestroy = true;
+            Owner.TryDestroy(DestroyingWorld);
+        }
+    }
+}
