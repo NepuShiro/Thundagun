@@ -87,7 +87,7 @@ namespace Thundagun.NewConnectors
         {
         }
 
-        public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new SlotApplyChangesPacket(this));
+        public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesSlotConnector(this));
 
         public void SetData()
         {
@@ -99,10 +99,10 @@ namespace Thundagun.NewConnectors
         }
         
         public override void Destroy(bool destroyingWorld) =>
-            Thundagun.CurrentPackets.Add(new SlotDestroyPacket(this, destroyingWorld));
+            Thundagun.CurrentPackets.Add(new DestroySlotConnector(this, destroyingWorld));
     }
 
-    public class SlotApplyChangesPacket : UpdatePacket<SlotConnector>
+    public class ApplyChangesSlotConnector : UpdatePacket<SlotConnector>
     {
         public bool Reparent;
         public SlotConnector NewParentSlot;
@@ -115,7 +115,7 @@ namespace Thundagun.NewConnectors
         public bool ScaleChanged;
         public Vector3 Scale;
             
-        public SlotApplyChangesPacket(SlotConnector owner) : base(owner)
+        public ApplyChangesSlotConnector(SlotConnector owner) : base(owner)
         {
             var o = owner.Owner;
             var parent = o.Parent;
@@ -162,10 +162,10 @@ namespace Thundagun.NewConnectors
         }
     }
 
-    public class SlotDestroyPacket : UpdatePacket<SlotConnector>
+    public class DestroySlotConnector : UpdatePacket<SlotConnector>
     {
         public bool DestroyingWorld;
-        public SlotDestroyPacket(SlotConnector owner, bool destroyingWorld) : base(owner)
+        public DestroySlotConnector(SlotConnector owner, bool destroyingWorld) : base(owner)
         {
             DestroyingWorld = destroyingWorld;
         }

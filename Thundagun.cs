@@ -28,6 +28,12 @@ public class Thundagun : ResoniteMod
     }
 }
 
+[HarmonyPatch(typeof(UnityFrooxEngineRunner.FrooxEngineRunner))]
+public static class FrooxEngineRunnerPatch
+{
+    
+}
+
 [HarmonyPatch(typeof(EngineInitializer))]
 public static class EngineInitializerPatch
 {
@@ -36,11 +42,31 @@ public static class EngineInitializerPatch
     private static bool InitializeConnectorFieldsPrefix(List<Type> allTypes, Type type, Type connectorType,
         bool connectorMandatory, Type defaultConnector, bool verbose)
     {
-        var field1 = type.GetField("__connectorType", BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
-        var field2 = type.GetField("__connectorTypes", BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
+        var field1 = type.GetField("__connectorType",
+            BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
+        var field2 = type.GetField("__connectorTypes",
+            BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
+        
+        //the following are not required, after initialization
+        //(which only happens once before the update loop switches over)
+        //they do literally nothing
+        // WorldManager
+        // AudioSystem
+        // RenderManager (doesn't even seem to exist?)
+
         if (type == typeof(Slot))
         {
             field1.SetValue(null, typeof(SlotConnector));
+            return false;
+        }
+        if (type == typeof(World))
+        {
+            field1.SetValue(null, typeof(WorldConnector));
+            return false;
+        }
+        if (type == typeof(AssetManager))
+        {
+            field1.SetValue(null, typeof(UnityAssetIntegrator));
             return false;
         }
         return true;

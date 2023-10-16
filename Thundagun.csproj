@@ -14,6 +14,9 @@
       <HintPath Condition="Exists('$(ResonitePath)ResoniteModLoader.dll')">$(ResonitePath)ResoniteModLoader.dll</HintPath>
       <HintPath Condition="Exists('$(ResonitePath)Libraries/ResoniteModLoader.dll')">$(ResonitePath)Libraries/ResoniteModLoader.dll</HintPath>
     </Reference>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/Assembly-CSharp.dll</HintPath>
+    </Reference>
     <Reference Include="FrooxEngine">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/FrooxEngine.dll</HintPath>
     </Reference>
@@ -31,6 +34,12 @@
     </Reference>
     <Reference Include="UnityEngine.CoreModule">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/System.Memory.dll</HintPath>
     </Reference>
     <Reference Include="HarmonyLib">
       <HintPath Condition="Exists('$(ResonitePath)0Harmony.dll')">$(ResonitePath)0Harmony.dll</HintPath>
