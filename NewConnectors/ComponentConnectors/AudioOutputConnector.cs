@@ -6,7 +6,7 @@ using AudioRolloffMode = UnityEngine.AudioRolloffMode;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
-public class AudioOutputConnector : ComponentConnector<AudioOutput>
+public class AudioOutputConnector : ComponentConnectorSingle<AudioOutput>
 {
     public AudioOutputBehavior _outputBehavior;
 

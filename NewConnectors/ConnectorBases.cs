@@ -12,10 +12,10 @@ public abstract class ComponentConnector<TD, TC> : Connector<TD>
 
     public GameObject AttachedGameObject { get; set; }
 
-    public virtual InitializeComponentConnector<TD, TC> InitializePacket() =>
-        new(this, Owner);
+    public virtual IUpdatePacket InitializePacket() =>
+        new InitializeComponentConnector<TD, TC, ComponentConnector<TD, TC>>(this, Owner);
 
-    public virtual DestroyComponentConnector<TD, TC> DestroyPacket(bool destroyingWorld) => new(this, Owner, destroyingWorld);
+    public virtual IUpdatePacket DestroyPacket(bool destroyingWorld) => new DestroyComponentConnector<TD, TC>(this, Owner, destroyingWorld);
 
     public override void Initialize() => Thundagun.CurrentPackets.Add(InitializePacket());
     public override void Destroy(bool destroyingWorld) => Thundagun.CurrentPackets.Add(DestroyPacket(destroyingWorld));
@@ -25,24 +25,24 @@ public abstract class ComponentConnector<TD, TC> : Connector<TD>
     }
 }
 
-public abstract class ComponentConnector<TD> : ComponentConnector<TD, IConnector> 
+public abstract class ComponentConnectorSingle<TD> : ComponentConnector<TD, IConnector> 
     where TD : ImplementableComponent<IConnector>
 {
-    public override InitializeComponentConnector<TD, IConnector> InitializePacket() =>
-        new InitializeComponentConnector<TD>(this, Owner);
-    public override DestroyComponentConnector<TD, IConnector> DestroyPacket(bool destroyingWorld) =>
+    public override IUpdatePacket InitializePacket() =>
+        new InitializeComponentConnectorSingle<TD, ComponentConnectorSingle<TD>>(this, Owner);
+    public override IUpdatePacket DestroyPacket(bool destroyingWorld) =>
         new DestroyComponentConnector<TD>(this, Owner, destroyingWorld);
 }
 
-public abstract class UnityComponentConnector<TC, TU> : ComponentConnector<TC>
+public abstract class UnityComponentConnector<TC, TU> : ComponentConnectorSingle<TC>
     where TC : ImplementableComponent
     where TU : MonoBehaviour, IConnectorBehaviour
 {
     public TU UnityComponent { get; set; }
 
-    public override InitializeComponentConnector<TC, IConnector> InitializePacket() => 
-        new InitializeUnityComponentConnector<TC, TU>(this, Owner);
+    public override IUpdatePacket InitializePacket() => 
+        new InitializeUnityComponentConnector<TC, TU, UnityComponentConnector<TC, TU>>(this, Owner);
 
-    public override DestroyComponentConnector<TC, IConnector> DestroyPacket(bool destroyingWorld) =>
+    public override IUpdatePacket DestroyPacket(bool destroyingWorld) =>
         new DestroyUnityComponentConnector<TC, TU>(this, Owner, destroyingWorld);
 }

@@ -4,13 +4,13 @@ using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
 
-
-public class InitializeComponentConnector<TD, TC> : UpdatePacket<ComponentConnector<TD, TC>>
+public class InitializeComponentConnector<TD, TC, T> : UpdatePacket<T>
     where TD : ImplementableComponent<TC>
     where TC : class, IConnector
+    where T : ComponentConnector<TD, TC>
 {
     public SlotConnector Connector;
-    public InitializeComponentConnector(ComponentConnector<TD, TC> connector, TD component) : base(connector)
+    public InitializeComponentConnector(T connector, TD component) : base(connector)
     {
         Connector = (SlotConnector) component.Slot.Connector;
     }
@@ -22,20 +22,21 @@ public class InitializeComponentConnector<TD, TC> : UpdatePacket<ComponentConnec
     }
 }
 
-public class InitializeComponentConnector<TD> : InitializeComponentConnector<TD, IConnector>
+public class InitializeComponentConnectorSingle<TD, T> : InitializeComponentConnector<TD, IConnector, T>
     where TD : ImplementableComponent<IConnector>
+    where T : ComponentConnectorSingle<TD>
 {
-    public InitializeComponentConnector(ComponentConnector<TD, IConnector> connector, TD component) : base(connector, component)
+    public InitializeComponentConnectorSingle(T connector, TD component) : base(connector, component)
     {
     }
 }
 
-public class InitializeUnityComponentConnector<TC, TU> : InitializeComponentConnector<TC>
+public class InitializeUnityComponentConnector<TC, TU, T> : InitializeComponentConnectorSingle<TC, T>
     where TC : ImplementableComponent 
     where TU : MonoBehaviour, IConnectorBehaviour
+    where T : UnityComponentConnector<TC, TU>
 {
-    public UnityComponentConnector<TC, TU> OwnerConnector => Owner as UnityComponentConnector<TC, TU>;
-    public InitializeUnityComponentConnector(UnityComponentConnector<TC, TU> connector, TC component) : base(connector, component)
+    public InitializeUnityComponentConnector(T connector, TC component) : base(connector, component)
     {
         
     }
@@ -43,8 +44,8 @@ public class InitializeUnityComponentConnector<TC, TU> : InitializeComponentConn
     public override void Update()
     {
         base.Update();
-        OwnerConnector.UnityComponent = Owner.AttachedGameObject.AddComponent<TU>();
-        OwnerConnector.UnityComponent.AssignConnector(Owner);
+        Owner.UnityComponent = Owner.AttachedGameObject.AddComponent<TU>();
+        Owner.UnityComponent.AssignConnector(Owner);
     }
 }
 
@@ -73,7 +74,7 @@ public class DestroyComponentConnector<TD, TC> : UpdatePacket<ComponentConnector
 public class DestroyComponentConnector<TD> : DestroyComponentConnector<TD, IConnector>
     where TD : ImplementableComponent<IConnector>
 {
-    public DestroyComponentConnector(ComponentConnector<TD> connector, TD component, bool destroyingWorld) :
+    public DestroyComponentConnector(ComponentConnectorSingle<TD> connector, TD component, bool destroyingWorld) :
         base(connector, component, destroyingWorld)
     {
     }

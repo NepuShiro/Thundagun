@@ -1,14 +1,14 @@
 using System.Collections.Generic;
+using System.Linq;
 using Elements.Core;
-using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
+using Camera = FrooxEngine.Camera;
 using Rect = UnityEngine.Rect;
-using RenderTexture = UnityEngine.RenderTexture;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
-public class CameraConnector : ComponentConnector<FrooxEngine.Camera>
+public class CameraConnector : ComponentConnectorSingle<Camera>
 {
     public bool PostprocessingSetup;
     public bool ScreenspaceReflections;
@@ -19,67 +19,30 @@ public class CameraConnector : ComponentConnector<FrooxEngine.Camera>
     public static int PrivateLayerMask;
     public UnityEngine.Camera UnityCamera { get; set; }
 
-    public override void Initialize()
-    {
-        Thundagun.CurrentPackets.Add(new InitializeCameraConnector(this));
-    }
+    public override IUpdatePacket InitializePacket() => new InitializeCameraConnector(this);
 
-    public override void ApplyChanges()
-    {
-        UnityCamera.orthographic = Owner.Projection.Value == CameraProjection.Orthographic;
-        UnityCamera.fieldOfView = Owner.FieldOfView;
-        UnityCamera.orthographicSize = Owner.OrthographicSize;
-        RenderEx.OrthographicSize = Owner.OrthographicSize;
-        RenderEx.UseTransformScale = Owner.UseTransformScale;
-        RenderEx.NearClip = Owner.NearClipping;
-        RenderEx.FarClip = Owner.FarClipping;
-        UnityCamera.clearFlags = Owner.Clear.Value.ToUnity();
-        UnityCamera.backgroundColor = Owner.ClearColor.Value.ToUnity(ColorProfile.sRGB);
-        UnityCamera.rect = Owner.Viewport.Value.ToUnity();
-        UnityCamera.depth = Owner.Depth.Value;
-        UnityCamera.renderingPath = Owner.ForwardOnly.Value ? RenderingPath.Forward : RenderingPath.UsePlayerSettings;
-        RenderEx.RenderShadows = Owner.RenderShadows.Value;
-        if (Owner.Postprocessing != PostprocessingSetup ||
-            Owner.ScreenSpaceReflections != ScreenspaceReflections || Owner.MotionBlur != MotionBlur)
-        {
-            UnityCamera.targetTexture = null;
-            PostprocessingSetup = Owner.Postprocessing;
-            ScreenspaceReflections = Owner.ScreenSpaceReflections;
-            MotionBlur = Owner.MotionBlur;
-            if (Owner.Postprocessing) Owner.World.Render.Connector.SetupPostProcessing(Owner, MotionBlur, ScreenspaceReflections);
-            else Owner.World.Render.Connector.RemovePostProcessing(Owner);
-        }
-
-        RenderEx.Texture = Owner.RenderTexture.Asset.GetUnity();
-        RenderEx.DoubleBuffer = Owner.DoubleBuffered.Value && !(bool) Owner.Postprocessing;
-        RenderEx.SelectiveRender.Clear();
-        RenderEx.ExcludeRender.Clear();
-        Helper.ConvertSlots(Owner.SelectiveRender, RenderEx.SelectiveRender);
-        Helper.ConvertSlots(Owner.ExcludeRender, RenderEx.ExcludeRender);
-        UnityCamera.cullingMask = RenderEx.SelectiveRender.Count <= 0
-            ? (Owner.RenderPrivateUI ? PrivateLayerMask : LayerMask)
-            : 1 << UnityEngine.LayerMask.NameToLayer("Temp");
-        UnityCamera.targetTexture = RenderEx.Texture;
-        UnityCamera.enabled = UnityCamera.targetTexture != null && Owner.Enabled && Owner.Slot.IsActive;
-    }
+    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesCameraConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {
         RenderEx?.Deinitialize();
-        if (!destroyingWorld && (bool) (Object) CameraGo)
+        if (!destroyingWorld && CameraGo)
             Object.Destroy(CameraGo);
         base.DestroyMethod(destroyingWorld);
     }
 }
 
-public class InitializeCameraConnector : UpdatePacket<CameraConnector>
+public class InitializeCameraConnector : InitializeComponentConnectorSingle<Camera, CameraConnector>
 {
-    public IRenderConnector RenderConnector;
-    
-    public InitializeCameraConnector(CameraConnector owner) : base(owner) => RenderConnector = owner.Owner.World.Render.Connector;
+    public InitializeCameraConnector(CameraConnector owner) : base(owner, owner.Owner)
+    {
+        if (CameraConnector.LayerMask == 0) CameraConnector.LayerMask = RenderHelper.PUBLIC_RENDER_MASK;
+        if (CameraConnector.PrivateLayerMask == 0) CameraConnector.PrivateLayerMask = RenderHelper.PRIVATE_RENDER_MASK;
+    }
 
     public override void Update()
     {
+        base.Update();
         Owner.CameraGo = new GameObject("");
         Owner.CameraGo.transform.SetParent(Owner.AttachedGameObject.transform, false);
         Owner.UnityCamera = Owner.CameraGo.AddComponent<UnityEngine.Camera>();
@@ -89,9 +52,7 @@ public class InitializeCameraConnector : UpdatePacket<CameraConnector>
         Owner.RenderEx.Camera = Owner.UnityCamera;
         Owner.RenderEx.Engine = Owner.Engine;
         Owner.RenderEx.Owner = Owner;
-        if (CameraConnector.LayerMask == 0) CameraConnector.LayerMask = RenderHelper.PUBLIC_RENDER_MASK;
-        if (CameraConnector.PrivateLayerMask == 0) CameraConnector.PrivateLayerMask = RenderHelper.PRIVATE_RENDER_MASK;
-        if (Owner.Owner is not null && !Owner.Owner.IsDestroyed) RenderConnector.RegisterCamera(Owner.Owner);
+        RenderConnector.RegisterUnityCamera(Owner.UnityCamera);
     }
 }
 
@@ -109,13 +70,17 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
     public float Depth;
     public RenderingPath RenderingPath;
     public bool RenderShadows;
-    public IRenderConnector RenderConnector;
+    public bool PostprocessingSetup;
+    public bool ScreenspaceReflections;
+    public bool MotionBlur;
     public bool SetupPostProcessing;
     public bool RemovePostProcessing;
-    public RenderTexture Texture;
+    public RenderTextureConnector Texture;
     public bool DoubleBuffer;
-    public List<GameObject> SelectiveRender;
-    public List<GameObject> ExcludeRender;
+    public List<SlotConnector> SelectiveRender;
+    public List<SlotConnector> ExcludeRender;
+    public int CullingMask;
+    public bool Active;
     
     public ApplyChangesCameraConnector(CameraConnector owner) : base(owner)
     {
@@ -136,32 +101,60 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
             owner.Owner.ScreenSpaceReflections != owner.ScreenspaceReflections || 
             owner.Owner.MotionBlur != owner.MotionBlur)
         {
-            RenderConnector = owner.Owner.World.Render.Connector;
-            owner.PostprocessingSetup = owner.Owner.Postprocessing;
-            owner.ScreenspaceReflections = owner.Owner.ScreenSpaceReflections;
-            owner.MotionBlur = owner.Owner.MotionBlur;
+            PostprocessingSetup = owner.Owner.Postprocessing;
+            ScreenspaceReflections = owner.Owner.ScreenSpaceReflections;
+            MotionBlur = owner.Owner.MotionBlur;
             if (owner.Owner.Postprocessing) SetupPostProcessing = true;
             else RemovePostProcessing = true;
         }
         
-        Texture = owner.Owner.RenderTexture.Asset.GetUnity();
+        Texture = owner.Owner.RenderTexture.Asset.Connector as RenderTextureConnector;
         DoubleBuffer = owner.Owner.DoubleBuffered.Value;
-        
-        
+
+        SelectiveRender = owner.Owner.SelectiveRender.Select(i => i.Connector as SlotConnector).Where(i => i is not null).ToList();
+        ExcludeRender = owner.Owner.ExcludeRender.Select(i => i.Connector as SlotConnector).Where(i => i is not null).ToList();
+
+        CullingMask = owner.Owner.RenderPrivateUI ? CameraConnector.PrivateLayerMask : CameraConnector.LayerMask;
+        Active = owner.Owner.Enabled && owner.Owner.Slot.IsActive;
     }
 
     public override void Update()
     {
-        
+        Owner.UnityCamera.orthographic = Orthographic;
+        Owner.UnityCamera.fieldOfView = FieldOfView;
+        Owner.UnityCamera.orthographicSize = OrthographicSize;
+        Owner.RenderEx.OrthographicSize = OrthographicSize;
+        Owner.RenderEx.UseTransformScale = UseTransformScale;
+        Owner.RenderEx.NearClip = NearClip;
+        Owner.RenderEx.FarClip = FarClip;
+        Owner.UnityCamera.clearFlags = ClearFlags;
+        Owner.UnityCamera.backgroundColor = BackgroundColor;
+        Owner.UnityCamera.rect = Rect;
+        Owner.UnityCamera.depth = Depth;
+        Owner.UnityCamera.renderingPath = RenderingPath;
+        Owner.RenderEx.RenderShadows = RenderShadows;
         
         if (SetupPostProcessing || RemovePostProcessing)
         {
             Owner.UnityCamera.targetTexture = null;
-            if (!Owner.Owner.IsDestroyed)
-            {
-                if (SetupPostProcessing) RenderConnector.SetupPostProcessing(Owner.Owner, Owner.MotionBlur, Owner.ScreenspaceReflections);
-                else RenderConnector.RemovePostProcessing(Owner.Owner);
-            }
+            Owner.PostprocessingSetup = PostprocessingSetup;
+            Owner.ScreenspaceReflections = ScreenspaceReflections;
+            Owner.MotionBlur = MotionBlur;
+            if (SetupPostProcessing) CameraInitializer.SetupPostProcessing(Owner.UnityCamera, Owner.MotionBlur, Owner.ScreenspaceReflections);
+            else CameraInitializer.RemovePostProcessing(Owner.UnityCamera);
         }
+        
+        Owner.RenderEx.Texture = Texture.RenderTexture;
+        Owner.RenderEx.DoubleBuffer = DoubleBuffer && !PostprocessingSetup;
+        Owner.RenderEx.SelectiveRender.Clear();
+        Owner.RenderEx.ExcludeRender.Clear();
+        Owner.RenderEx.SelectiveRender.AddRange(SelectiveRender.Select(i => i.GeneratedGameObject).Where(i => i is not null));
+        Owner.RenderEx.ExcludeRender.AddRange(ExcludeRender.Select(i => i.GeneratedGameObject).Where(i => i is not null));
+        
+        Owner.UnityCamera.cullingMask = Owner.RenderEx.SelectiveRender.Count <= 0
+            ? CullingMask
+            : 1 << LayerMask.NameToLayer("Temp");
+        Owner.UnityCamera.enabled = Owner.UnityCamera.targetTexture != null && Active;
+
     }
 }
