@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
+using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
 using ResoniteModLoader;
@@ -52,8 +54,10 @@ public static class EngineInitializerPatch
         //they do literally nothing
         // WorldManager
         // AudioSystem
-        // RenderManager (doesn't even seem to exist?)
-
+        
+        //TODO:
+        // RenderManager
+        
         if (type == typeof(Slot))
         {
             field1.SetValue(null, typeof(SlotConnector));
@@ -70,6 +74,19 @@ public static class EngineInitializerPatch
             return false;
         }
         return true;
+    }
+}
+
+[HarmonyPatch(typeof(WorkerInitializer))]
+public class WorkerInitializerPatch
+{
+    [HarmonyPostfix]
+    [HarmonyPatch("Initialize")]
+    public static void InitializePatch(List<Type> allTypes, bool verbose)
+    {
+        var fieldInfo = typeof(WorkerInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
+        var types = typeof(Thundagun).Assembly.GetTypes().Where(i => i.GetInterfaces().Contains(typeof(IConnector))).ToArray();
+        fieldInfo?.SetValue(null, types);
     }
 }
 

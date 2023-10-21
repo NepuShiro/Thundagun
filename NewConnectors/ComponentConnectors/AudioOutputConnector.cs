@@ -85,7 +85,7 @@ public class ApplyChangesAudioOutputConnector : UpdatePacket<AudioOutputConnecto
             {
                 unityAudio.spatialize = Spatialize;
                 //TODO: ?????
-                if (Owner.Owner.IsValid)
+                if (Owner.Owner is not null && !Owner.Owner.IsDestroyed)
                 {
                     if (Spatialize) Owner.Engine.AudioSystem.SpatializerEnabled(Owner.Owner);
                     else Owner.Engine.AudioSystem.SpatializerDisabled(Owner.Owner);
