@@ -6,7 +6,10 @@ using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
 using ResoniteModLoader;
-using Thundagun.NewConnectors;
+using UnityFrooxEngineRunner;
+using SlotConnector = Thundagun.NewConnectors.SlotConnector;
+using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
+using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 
 namespace Thundagun;
 
@@ -85,8 +88,19 @@ public class WorkerInitializerPatch
     public static void InitializePatch(List<Type> allTypes, bool verbose)
     {
         var fieldInfo = typeof(WorkerInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
-        var types = typeof(Thundagun).Assembly.GetTypes().Where(i => i.GetInterfaces().Contains(typeof(IConnector))).ToArray();
-        fieldInfo?.SetValue(null, types);
+        var types = typeof(Thundagun).Assembly.GetTypes().Where(i => i.GetInterfaces().Contains(typeof(IConnector))).ToList();
+
+        //put all connectors that need no changes here
+        types.AddRange(new[]
+        {
+            typeof(MaterialConnector),
+            typeof(MaterialConnectorBase),
+            typeof(MaterialPropertyBlockConnector),
+            typeof(ShaderConnector),
+            
+        });
+
+        fieldInfo?.SetValue(null, types.ToArray());
     }
 }
 
