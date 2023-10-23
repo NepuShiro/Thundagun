@@ -208,23 +208,25 @@ public class TextureConnector :
 
     private void UploadTextureDataUnity(TextureUploadData data)
     {
+        /*
         var size = new int2(_unityTexture2D.width, _unityTexture2D.height);
-        var num = 0;
+        //var num = 0;
         for (var index = 0; index < data.StartMip; ++index)
         {
             var alignedSize = Bitmap2DBase.AlignSize(in size, data.Format);
-            num += alignedSize.x * alignedSize.y;
+            //num += alignedSize.x * alignedSize.y;
             size /= 2;
             size = MathX.Max(size, 1);
         }
-        var bytes = (int) MathX.BitsToBytes(num * data.Format.GetBitsPerPixel());
+        //var bytes = (int) MathX.BitsToBytes(num * data.Format.GetBitsPerPixel());
+        */
         var rawTextureData = _unityTexture2D.GetRawTextureData<byte>();
-        for (var index = 0; index < data.RawData.Length; ++index)
+        for (var index = 0; index < data.RawData.Length; index++)
             rawTextureData[index/* + bytes*/] = data.RawData[index];
         if (data.StartMip == 0)
         {
             _unityTexture2D?.Apply(false, !data.Hint.readable);
-            _unityCubemap?.Apply(false, !data.Hint.readable);
+            //_unityCubemap?.Apply(false, !data.Hint.readable);
             Engine.TextureUpdated();
         }
 

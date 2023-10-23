@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -12,6 +13,7 @@ using UnityEngine;
 using UnityFrooxEngineRunner;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
+using Texture2DConnector = Thundagun.NewConnectors.AssetConnectors.TextureConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 
@@ -30,7 +32,89 @@ public class Thundagun : ResoniteMod
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
+        
+        PatchEngineTypes();
+        PatchComponentConnectors(harmony);
+
+        var workerInitializerMethod = typeof(WorkerInitializer)
+            .GetMethods(AccessTools.all)
+            .First(i => i.Name.Contains("Initialize") && i.GetParameters().Length == 1 && 
+                        i.GetParameters()[0].ParameterType == typeof(Type));
+        var workerInitializerPatch =
+            typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize));
+
+        harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch));
+        
         harmony.PatchAll();
+    }
+
+    public static void PatchEngineTypes()
+    {
+        var engineTypes = typeof(Slot).Assembly.GetTypes()
+            .Where(i => i.GetCustomAttribute<ImplementableClassAttribute>() is not null).ToList();
+        foreach (var type in engineTypes)
+        {
+            var field1 = type.GetField("__connectorType",
+                BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
+            var field2 = type.GetField("__connectorTypes",
+                BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
+
+            //the following are not required, after initialization
+            //(which only happens once before the update loop switches over)
+            //they do literally nothing
+            // WorldManager
+            // AudioSystem TODO; check this one again
+
+            if (type == typeof(Slot))
+            {
+                field1.SetValue(null, typeof(SlotConnector));
+                Msg($"Patched {type.Name}");
+            }
+            else if (type == typeof(World))
+            {
+                field1.SetValue(null, typeof(WorldConnector));
+                Msg($"Patched {type.Name}");
+            }
+            else if (type == typeof(AssetManager))
+            {
+                field1.SetValue(null, typeof(UnityAssetIntegrator));
+                Msg($"Patched {type.Name}");
+            }
+            else if (type == typeof(RenderManager))
+            {
+                field1.SetValue(null, typeof(RenderConnector));
+                Msg($"Patched {type.Name}");
+            }
+        }
+    }
+
+    public static void PatchComponentConnectors(Harmony harmony)
+    {
+        /*
+        var workerInitializerField =
+            typeof(WorkerInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
+            */
+        var types = typeof(Thundagun).Assembly.GetTypes()
+            .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
+
+        var initInfosField = typeof(WorkerInitializer).GetField("initInfos", AccessTools.all);
+        var initInfos = (ConcurrentDictionary<Type, WorkerInitInfo>) initInfosField?.GetValue(null);
+            
+        Msg($"Attempting to patch component types");
+            
+        foreach (var t in initInfos.Keys)
+        {
+            Msg($"Attempting " + t.Name);
+            var connectorType = typeof(IConnector<>).MakeGenericType(!t.IsGenericType ? t : t.GetGenericTypeDefinition());
+            var array = types.Where(j => j.GetInterfaces().Any(i => i == connectorType)).ToArray();
+            if (array.Length == 1)
+            {
+                initInfos[t].connectorType = array[0];
+                Msg($"Patched " + t.Name);
+            }
+        }
+
+        //workerInitializerField?.SetValue(null, types.ToArray());
     }
 }
 
@@ -39,7 +123,7 @@ public static class FrooxEngineRunnerPatch
 {
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
-    private static bool Update(FrooxEngineRunner __instance, ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld)
+    public static bool Update(FrooxEngineRunner __instance, ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld)
     {
         if (!__instance.IsInitialized || ____frooxEngine == null)
             return false;
@@ -142,98 +226,69 @@ public static class FrooxEngineRunnerPatch
     }
 }
 
-[HarmonyPatch(typeof(EngineInitializer))]
-public static class EngineInitializerPatch
-{
-    [HarmonyPrefix]
-    [HarmonyPatch("InitializeConnectorFields")]
-    private static bool InitializeConnectorFieldsPrefix(List<Type> allTypes, Type type, Type connectorType,
-        bool connectorMandatory, Type defaultConnector, bool verbose)
-    {
-        var field1 = type.GetField("__connectorType",
-            BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
-        var field2 = type.GetField("__connectorTypes",
-            BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
-        
-        //the following are not required, after initialization
-        //(which only happens once before the update loop switches over)
-        //they do literally nothing
-        // WorldManager
-        // AudioSystem TODO; check this one again
-
-        if (type == typeof(Slot))
-        {
-            field1.SetValue(null, typeof(SlotConnector));
-            return false;
-        }
-        if (type == typeof(World))
-        {
-            field1.SetValue(null, typeof(WorldConnector));
-            return false;
-        }
-        if (type == typeof(AssetManager))
-        {
-            field1.SetValue(null, typeof(UnityAssetIntegrator));
-            return false;
-        }
-        if (type == typeof(RenderManager))
-        {
-            field1.SetValue(null, typeof(RenderConnector));
-            return false;
-        }
-        return true;
-    }
-}
-
-[HarmonyPatch(typeof(WorkerInitializer))]
-public class WorkerInitializerPatch
-{
-    [HarmonyPostfix]
-    [HarmonyPatch("Initialize")]
-    public static void InitializePatch(List<Type> allTypes, bool verbose)
-    {
-        var fieldInfo = typeof(WorkerInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
-        var types = typeof(Thundagun).Assembly.GetTypes().Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
-
-        //put all connectors that need no changes here
-        /*
-        types.AddRange(new[]
-        {
-            typeof(),
-        });
-        */
-
-        fieldInfo?.SetValue(null, types.ToArray());
-    }
-}
-
 [HarmonyPatch(typeof(AssetInitializer))]
-public class AssetInitializerPatch
+public static class AssetInitializerPatch
 {
-    public static bool Done;
-    
-    [HarmonyPrefix]
-    [HarmonyPatch("Initialize")]
-    private static bool Initialize(Type assetType)
+    public static readonly Dictionary<Type, Type> Connectors = new();
+    //patch asset types
+    static AssetInitializerPatch()
     {
-        if (Done) return true;
-        var fieldInfo = typeof(AssetInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
-        var types = typeof(Thundagun).Assembly.GetTypes().Where(i => i.IsClass && i.IsAbstract && i.GetInterfaces().Contains(typeof(IAssetConnector))).ToList();
-        
-        //put all connectors that need no changes here
-        types.AddRange(new[]
+        var ourTypes = typeof(Thundagun).Assembly.GetTypes()
+            .Where(i => i.GetInterfaces().Contains(typeof(IAssetConnector))).ToList();
+        var theirTypes = typeof(Slot).Assembly.GetTypes().Where(t =>
         {
-            typeof(MaterialConnector),
-            typeof(MaterialConnectorBase),
-            typeof(MaterialPropertyBlockConnector),
-            typeof(ShaderConnector),
-            typeof(VideoTextureConnector) //TODO: investigate
-        });
+            if (!t.IsClass || t.IsAbstract || !typeof(Asset).IsAssignableFrom(t))
+                return false;
+            return t.InheritsFromGeneric(typeof(ImplementableAsset<,>)) || t.InheritsFromGeneric(typeof(DynamicImplementableAsset<>));
+        }).ToList();
+
+        foreach (var t in theirTypes)
+        {
+            var connectorType = t.GetProperty("Connector", BindingFlags.FlattenHierarchy | BindingFlags.Instance | BindingFlags.Public)?.PropertyType;
+            if (connectorType is null) continue;
+            var list = ourTypes.Where(i => connectorType.IsAssignableFrom(i)).ToList();
+            if (list.Count == 1)
+            {
+                Connectors.Add(t, list[0]);
+            }
+        }
+    }
+    [HarmonyPrefix]
+    [HarmonyPatch("GetConnectorType")]
+    public static bool GetConnectorType(Asset asset, ref Type __result)
+    {
+        if (!Connectors.TryGetValue(asset.GetType(), out var t)) return true;
+        __result = t;
+        Thundagun.Msg($"Patched {asset.GetType().Name}");
+        return false;
+    }
+}
+
+public static class WorkerInitializerPatch
+{
+    public static void Initialize(Type workerType, WorkerInitInfo __result)
+    {
+        //if the type doesn't implement a connector, skip this
+        if (!workerType.GetInterfaces().Contains(typeof(IImplementable))) return;
         
-        fieldInfo?.SetValue(null, types.ToArray());
+        //TODO: make this static
+        //get all connector types from this mod
+        var types = typeof(Thundagun)
+            .Assembly
+            .GetTypes()
+            .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector)))
+            .ToList();
         
-        Done = true;
-        return true;
+        //find a type that implements IConnector<T>, where T is workerType
+        var connectorType = typeof(IConnector<>)
+            .MakeGenericType(workerType.IsGenericType ? workerType.GetGenericTypeDefinition() : workerType);
+        var array = types.Where(j => j.GetInterfaces().Any(i => i == connectorType)).ToArray();
+        
+        if (array.Length == 1)
+        {
+            __result.connectorType = array[0];
+            Thundagun.Msg($"Patched " + workerType.Name);
+        }
     }
 }
 

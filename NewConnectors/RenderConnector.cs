@@ -20,7 +20,6 @@ public class RenderConnector : IRenderConnector
     public void Initialize(RenderManager manager)
     {
         Thundagun.CurrentPackets.Add(new InitializeRenderConnector(this));
-        renderQueue.Connector = this;
     }
 
     public GameObject GetGameObject(Slot slot) => ((SlotConnector) slot.Connector).GeneratedGameObject;
@@ -29,10 +28,9 @@ public class RenderConnector : IRenderConnector
 
     public byte[] RenderImmediate(FrooxEngine.RenderSettings renderSettings)
     {
-        var renderSettings1 = renderSettings;
-        var texture2D = new UnityEngine.Texture2D(renderSettings1.size.x, renderSettings1.size.y,
-            renderSettings1.textureFormat.ToUnity(), false);
-        var temporary = UnityEngine.RenderTexture.GetTemporary(renderSettings1.size.x, renderSettings1.size.y, 24,
+        var texture2D = new UnityEngine.Texture2D(renderSettings.size.x, renderSettings.size.y,
+            renderSettings.textureFormat.ToUnity(), false);
+        var temporary = UnityEngine.RenderTexture.GetTemporary(renderSettings.size.x, renderSettings.size.y, 24,
             RenderTextureFormat.ARGB32);
         var active = UnityEngine.RenderTexture.active;
         var dictionary = Pool.BorrowDictionary<GameObject, int>();
@@ -40,10 +38,10 @@ public class RenderConnector : IRenderConnector
         var list2 = (List<GameObject>) null;
         var layer = LayerMask.NameToLayer("Temp");
         var num = 1 << layer;
-        if (renderSettings1.excludeObjects != null && renderSettings1.excludeObjects.Count > 0)
+        if (renderSettings.excludeObjects != null && renderSettings.excludeObjects.Count > 0)
         {
             list2 = Pool.BorrowList<GameObject>();
-            foreach (var excludeObject in renderSettings1.excludeObjects)
+            foreach (var excludeObject in renderSettings.excludeObjects)
             {
                 var gameObject = GetGameObject(excludeObject);
                 if (gameObject != null)
@@ -51,10 +49,10 @@ public class RenderConnector : IRenderConnector
             }
         }
 
-        if (renderSettings1.renderObjects != null && renderSettings1.renderObjects.Count > 0)
+        if (renderSettings.renderObjects != null && renderSettings.renderObjects.Count > 0)
         {
             list1 = Pool.BorrowList<GameObject>();
-            foreach (var renderObject in renderSettings1.renderObjects)
+            foreach (var renderObject in renderSettings.renderObjects)
             {
                 var gameObject = GetGameObject(renderObject);
                 if (gameObject != null)
@@ -70,7 +68,7 @@ public class RenderConnector : IRenderConnector
         else if (list2 != null)
             RenderHelper.SetHiearchyLayer(list2, layer, dictionary);
 
-        if (renderSettings1.fov >= 180.0)
+        if (renderSettings.fov >= 180.0)
         {
             if (list1 != null)
             {
@@ -79,18 +77,18 @@ public class RenderConnector : IRenderConnector
             else
             {
                 camera360.Camera.cullingMask = ~num & _hiddenLayerMask;
-                if (!renderSettings1.renderPrivateUI)
+                if (!renderSettings.renderPrivateUI)
                     camera360.Camera.cullingMask &= _privateLayerMask;
             }
 
-            CameraInitializer.SetPostProcessing(camera360.Camera, renderSettings1.postProcesing, false,
-                renderSettings1.screenspaceReflections);
-            camera360.transform.position = renderSettings1.position.ToUnity();
-            camera360.transform.rotation = renderSettings1.rotation.ToUnity();
-            camera360.Camera.clearFlags = renderSettings1.clear.ToUnity();
-            camera360.Camera.backgroundColor = renderSettings1.clearColor.ToUnity(ColorProfile.sRGB);
-            camera360.Camera.nearClipPlane = renderSettings1.near;
-            camera360.Camera.farClipPlane = renderSettings1.far;
+            CameraInitializer.SetPostProcessing(camera360.Camera, renderSettings.postProcesing, false,
+                renderSettings.screenspaceReflections);
+            camera360.transform.position = renderSettings.position.ToUnity();
+            camera360.transform.rotation = renderSettings.rotation.ToUnity();
+            camera360.Camera.clearFlags = renderSettings.clear.ToUnity();
+            camera360.Camera.backgroundColor = renderSettings.clearColor.ToUnity(ColorProfile.sRGB);
+            camera360.Camera.nearClipPlane = renderSettings.near;
+            camera360.Camera.farClipPlane = renderSettings.far;
             camera360.Render(temporary);
         }
         else
@@ -102,22 +100,22 @@ public class RenderConnector : IRenderConnector
             else
             {
                 camera.cullingMask = ~num & _hiddenLayerMask;
-                if (!renderSettings1.renderPrivateUI)
+                if (!renderSettings.renderPrivateUI)
                     camera.cullingMask &= _privateLayerMask;
             }
 
-            CameraInitializer.SetPostProcessing(camera, renderSettings1.postProcesing, false,
-                renderSettings1.screenspaceReflections);
-            camera.transform.position = renderSettings1.position.ToUnity();
-            camera.transform.rotation = renderSettings1.rotation.ToUnity();
-            camera.clearFlags = renderSettings1.clear.ToUnity();
-            camera.backgroundColor = renderSettings1.clearColor.ToUnity(ColorProfile.sRGB);
-            camera.nearClipPlane = renderSettings1.near;
-            camera.farClipPlane = renderSettings1.far;
+            CameraInitializer.SetPostProcessing(camera, renderSettings.postProcesing, false,
+                renderSettings.screenspaceReflections);
+            camera.transform.position = renderSettings.position.ToUnity();
+            camera.transform.rotation = renderSettings.rotation.ToUnity();
+            camera.clearFlags = renderSettings.clear.ToUnity();
+            camera.backgroundColor = renderSettings.clearColor.ToUnity(ColorProfile.sRGB);
+            camera.nearClipPlane = renderSettings.near;
+            camera.farClipPlane = renderSettings.far;
             camera.targetTexture = temporary;
-            camera.fieldOfView = renderSettings1.fov;
-            camera.orthographicSize = renderSettings1.ortographicSize;
-            camera.orthographic = renderSettings1.projection == CameraProjection.Orthographic;
+            camera.fieldOfView = renderSettings.fov;
+            camera.orthographicSize = renderSettings.ortographicSize;
+            camera.orthographic = renderSettings.projection == CameraProjection.Orthographic;
             camera.Render();
         }
 
@@ -131,7 +129,7 @@ public class RenderConnector : IRenderConnector
         if (list2 != null)
             Pool.Return(ref list2);
         UnityEngine.RenderTexture.active = temporary;
-        texture2D.ReadPixels(new UnityEngine.Rect(0.0f, 0.0f, renderSettings1.size.x, renderSettings1.size.y), 0, 0,
+        texture2D.ReadPixels(new UnityEngine.Rect(0.0f, 0.0f, renderSettings.size.x, renderSettings.size.y), 0, 0,
             false);
         UnityEngine.RenderTexture.active = active;
         UnityEngine.RenderTexture.ReleaseTemporary(temporary);
@@ -188,5 +186,6 @@ public class InitializeRenderConnector : UpdatePacket<RenderConnector>
         RenderConnector._hiddenLayerMask = ~LayerMask.GetMask("Hidden", "Overlay");
         RenderHelper.RegisterCamera = RenderConnector.RegisterUnityCamera;
         RenderConnector.renderQueue = new GameObject("RenderQueue").AddComponent<RenderQueueProcessor>();
+        RenderConnector.renderQueue.Connector = Owner;
     }
 }
