@@ -4,7 +4,7 @@ using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
 
-namespace Thundagun.NewConnectors.ComponentConnectors;
+namespace Thundagun.NewConnectors.AssetConnectors;
 
 public class RenderTextureConnector :
     AssetConnector,

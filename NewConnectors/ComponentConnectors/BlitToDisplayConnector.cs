@@ -2,6 +2,7 @@ using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
+using TextureConnector = Thundagun.NewConnectors.AssetConnectors.TextureConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -46,7 +47,7 @@ public class InitializeBlitToDisplayConnector : InitializeComponentConnectorSing
 public class ApplyChangesBlitToDisplayConnector : UpdatePacket<BlitToDisplayConnector>
 {
     public bool Blit;
-    public TextureConnector Texture;
+    public IUnityTextureProvider Texture;
     public int DisplayIndex;
     public Color Color;
     public bool FlipHorizontally;
@@ -57,7 +58,7 @@ public class ApplyChangesBlitToDisplayConnector : UpdatePacket<BlitToDisplayConn
         var target = owner.Owner.TargetUser.Target;
         Blit = target is not null && target.IsLocalUser;
         if (!Blit) return;
-        Texture = owner.Owner.Texture.Asset.Connector as TextureConnector;
+        Texture = owner.Owner.Texture.Asset.Connector as IUnityTextureProvider;
         DisplayIndex = owner.Owner.DisplayIndex.Value;
         Color = owner.Owner.BackgroundColor.Value.ToUnity(ColorProfile.sRGB);
         FlipHorizontally = owner.Owner.FlipHorizontally.Value;
@@ -68,7 +69,7 @@ public class ApplyChangesBlitToDisplayConnector : UpdatePacket<BlitToDisplayConn
     {
         if (Blit)
         {
-            Owner.blitter.Texture = Texture.UnityTexture2D;
+            Owner.blitter.Texture = Texture.UnityTexture;
             Owner.blitter.DisplayIndex = DisplayIndex;
             Owner.blitter.Color = Color;
             Owner.blitter.FlipHorizontally = FlipHorizontally;

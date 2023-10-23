@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityFrooxEngineRunner;
 using Camera = FrooxEngine.Camera;
 using Rect = UnityEngine.Rect;
+using RenderTextureConnector = Thundagun.NewConnectors.AssetConnectors.RenderTextureConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 

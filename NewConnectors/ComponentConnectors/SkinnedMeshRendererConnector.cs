@@ -38,7 +38,7 @@ public class SkinnedMeshRendererConnector :
         _boundsUpdater = null;
     }
 
-    protected override void OnCleanupRenderer()
+    public override void OnCleanupRenderer()
     {
         base.OnCleanupRenderer();
         if (!(_boundsUpdater != null))
@@ -46,7 +46,7 @@ public class SkinnedMeshRendererConnector :
         CleanupBoundsUpdater();
     }
 
-    internal void ForceRecalculationPerRender()
+    public void ForceRecalculationPerRender()
     {
         _forceRecalcPerRender = true;
         if (!(MeshRenderer != null))
@@ -54,7 +54,7 @@ public class SkinnedMeshRendererConnector :
         MeshRenderer.forceMatrixRecalculationPerRender = true;
     }
 
-    internal void SendBoundsUpdated()
+    public void SendBoundsUpdated()
     {
         if (_sendingBoundsUpdate)
             return;

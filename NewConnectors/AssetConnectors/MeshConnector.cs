@@ -1,9 +1,8 @@
-using System;
 using Elements.Core;
 using FrooxEngine;
 using UnityFrooxEngineRunner;
 
-namespace Thundagun.NewConnectors.ComponentConnectors;
+namespace Thundagun.NewConnectors.AssetConnectors;
 
 public class MeshConnector : AssetConnector, IMeshConnector
 {

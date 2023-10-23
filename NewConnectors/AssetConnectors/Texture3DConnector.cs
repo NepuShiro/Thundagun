@@ -10,7 +10,7 @@ using Texture3D = UnityEngine.Texture3D;
 using TextureFormat = UnityEngine.TextureFormat;
 using TextureWrapMode = FrooxEngine.TextureWrapMode;
 
-namespace Thundagun.NewConnectors.ComponentConnectors;
+namespace Thundagun.NewConnectors.AssetConnectors;
 
   public class Texture3DConnector : 
     AssetConnector,
@@ -30,7 +30,7 @@ namespace Thundagun.NewConnectors.ComponentConnectors;
         var colorX = new colorX(data.DecodePixel(index), data.Profile);
         colors[index] = colorX.ToProfile(ColorProfile.Linear).ToUnity();
       }
-      UnityAssetIntegrator.EnqueueProcessing(UploadTextureData(data, t => t.SetPixels(colors), onSet), this.Asset.HighPriorityIntegration);
+      UnityAssetIntegrator.EnqueueProcessing(UploadTextureData(data, t => t.SetPixels(colors), onSet), Asset.HighPriorityIntegration);
     }
 
     public void UpdateProperties(

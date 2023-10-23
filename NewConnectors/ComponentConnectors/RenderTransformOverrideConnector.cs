@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using Elements.Core;
 using FrooxEngine;
@@ -9,12 +10,12 @@ namespace Thundagun.NewConnectors.ComponentConnectors;
 
 public class RenderTransformOverrideConnector : ComponentConnectorSingle<RenderTransformOverride>
 {
-    private RenderingContextHandler _handler;
-    private RenderingContext? _registeredContext;
-    private bool _isOverriden;
-    private Vector3? _targetPosition;
-    private Quaternion? _targetRotation;
-    private Vector3? _targetScale;
+    public RenderingContextHandler Handler;
+    public RenderingContext? RegisteredContext;
+    public bool IsOverriden;
+    public Vector3? TargetPosition;
+    public Quaternion? TargetRotation;
+    public Vector3? TargetScale;
     private Vector3? _originalPosition;
     private Quaternion? _originalRotation;
     private Vector3? _originalScale;
@@ -22,98 +23,54 @@ public class RenderTransformOverrideConnector : ComponentConnectorSingle<RenderT
     public override void Initialize()
     {
         base.Initialize();
-        _handler = HandleRenderingContextSwitch;
+        Handler = HandleRenderingContextSwitch;
     }
 
-    public override void ApplyChanges()
-    {
-        var nullable1 = !Owner.Enabled || !Owner.Slot.IsActive ? new RenderingContext?() : Owner.Context.Value;
-        var nullable2 = nullable1;
-        if (nullable2.GetValueOrDefault() == RenderingContext.UserView & nullable2.HasValue && !Owner.IsUnderLocalUser)
-            nullable1 = new RenderingContext?();
-        var registeredContext1 = _registeredContext;
-        var nullable3 = nullable1;
-        if (!(registeredContext1.GetValueOrDefault() == nullable3.GetValueOrDefault() &
-              registeredContext1.HasValue == nullable3.HasValue))
-        {
-            if (_isOverriden)
-                Restore();
-            UnregisterHandler();
-            if (nullable1.HasValue)
-                RenderHelper.RegisterRenderContextEvents(nullable1.Value, _handler);
-            _registeredContext = nullable1;
-        }
+    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesRenderTransformOverrideConnector(this));
 
-        foreach (var skinnedMeshRenderer in Owner.SkinnedMeshRenderers.Select(i => i.Connector)
-                     .OfType<SkinnedMeshRendererConnector>())
-        {
-            skinnedMeshRenderer.ForceRecalculationPerRender();
-        }
-
-        var nullable4 = Owner.PositionOverride.Value;
-        ref var local1 = ref nullable4;
-        _targetPosition = local1.HasValue ? local1.GetValueOrDefault().ToUnity() : new Vector3?();
-        var nullable5 = Owner.RotationOverride.Value;
-        ref var local2 = ref nullable5;
-        _targetRotation = local2.HasValue ? local2.GetValueOrDefault().ToUnity() : new Quaternion?();
-        var nullable6 = Owner.ScaleOverride.Value;
-        ref var local3 = ref nullable6;
-        _targetScale = local3.HasValue ? local3.GetValueOrDefault().ToUnity() : new Vector3?();
-        if (_isOverriden)
-            throw new InvalidOperationException("RenderTransform is overriden while being updated");
-        if (!_registeredContext.HasValue)
-            return;
-        var renderingContext2 = RenderHelper.CurrentRenderingContext;
-        var registeredContext2 = _registeredContext;
-        if (!(renderingContext2.GetValueOrDefault() == registeredContext2.GetValueOrDefault() &
-              renderingContext2.HasValue == registeredContext2.HasValue))
-            return;
-        Override();
-    }
-
-    public override void Destroy(bool destroyingWorld)
+    public override void DestroyMethod(bool destroyingWorld)
     {
         UnregisterHandler();
-        base.Destroy(destroyingWorld);
+        base.DestroyMethod(destroyingWorld);
     }
 
-    private void UnregisterHandler()
+    public void UnregisterHandler()
     {
-        if (!_registeredContext.HasValue)
+        if (!RegisteredContext.HasValue)
             return;
-        RenderHelper.UnregisterRenderContextEvents(_registeredContext.Value, _handler);
-        _registeredContext = new RenderingContext?();
+        RenderHelper.UnregisterRenderContextEvents(RegisteredContext.Value, Handler);
+        RegisteredContext = new RenderingContext?();
     }
 
-    private void Override()
+    public void Override()
     {
-        _isOverriden = !_isOverriden ? true : throw new Exception("RenderTransform is already overriden!");
+        IsOverriden = !IsOverriden ? true : throw new Exception("RenderTransform is already overriden!");
         if (!AttachedGameObject) return;
         var transform = AttachedGameObject.transform;
         if (!transform) return;
-        if (_targetPosition.HasValue)
+        if (TargetPosition.HasValue)
         {
             _originalPosition = transform.localPosition;
-            transform.localPosition = _targetPosition.Value;
+            transform.localPosition = TargetPosition.Value;
         }
         else _originalPosition = new Vector3?();
-        if (_targetRotation.HasValue)
+        if (TargetRotation.HasValue)
         {
             _originalRotation = transform.localRotation;
-            transform.localRotation = _targetRotation.Value;
+            transform.localRotation = TargetRotation.Value;
         }
         else _originalRotation = new Quaternion?();
-        if (_targetScale.HasValue)
+        if (TargetScale.HasValue)
         {
             _originalScale = transform.localScale;
-            transform.localScale = _targetScale.Value;
+            transform.localScale = TargetScale.Value;
         }
         else _originalScale = new Vector3?();
     }
 
-    private void Restore()
+    public void Restore()
     {
-        if (!_isOverriden) throw new Exception("RenderTransform is not overriden");
+        if (!IsOverriden) throw new Exception("RenderTransform is not overriden");
         if (AttachedGameObject)
         {
             var transform = AttachedGameObject.transform;
@@ -124,7 +81,7 @@ public class RenderTransformOverrideConnector : ComponentConnectorSingle<RenderT
                 if (_originalScale.HasValue) transform.localScale = _originalScale.Value;
             }
         }
-        _isOverriden = false;
+        IsOverriden = false;
     }
 
     private void HandleRenderingContextSwitch(RenderingContextStage stage)
@@ -135,10 +92,53 @@ public class RenderTransformOverrideConnector : ComponentConnectorSingle<RenderT
                 Override();
                 break;
             case RenderingContextStage.End:
-                if (!_isOverriden)
+                if (!IsOverriden)
                     break;
                 Restore();
                 break;
         }
+    }
+}
+
+public class ApplyChangesRenderTransformOverrideConnector : UpdatePacket<RenderTransformOverrideConnector>
+{
+    public RenderingContext? Context;
+    public List<SkinnedMeshRendererConnector> SkinnecMeshes;
+    public Vector3? TargetPosition;
+    public Quaternion? TargetRotation;
+    public Vector3? TargetScale;
+    public ApplyChangesRenderTransformOverrideConnector(RenderTransformOverrideConnector owner) : base(owner)
+    {
+        var renderingContext = owner.Owner.Enabled && owner.Owner.Slot.IsActive ? new RenderingContext?(owner.Owner.Context.Value) : null;
+        if (renderingContext == RenderingContext.UserView && !owner.Owner.IsUnderLocalUser) renderingContext = null;
+        Context = renderingContext;
+
+        SkinnecMeshes = owner.Owner.SkinnedMeshRenderers.Select(i => i.Connector as SkinnedMeshRendererConnector)
+            .Where(i => i is not null).ToList();
+        
+        TargetPosition = owner.Owner.PositionOverride.Value?.ToUnity();
+        TargetRotation = owner.Owner.RotationOverride.Value?.ToUnity();
+        TargetScale = owner.Owner.ScaleOverride.Value?.ToUnity();
+    }
+
+    public override void Update()
+    {
+        if (Owner.RegisteredContext != Context)
+        {
+            if (Owner.IsOverriden) Owner.Restore();
+            Owner.UnregisterHandler();
+            if (Context.HasValue) RenderHelper.RegisterRenderContextEvents(Context.Value, Owner.Handler);
+            Owner.RegisteredContext = Context;
+        }
+        
+        foreach (var skinnedMeshRenderer in SkinnecMeshes) skinnedMeshRenderer.ForceRecalculationPerRender();
+        
+        Owner.TargetPosition = TargetPosition;
+        Owner.TargetRotation = TargetRotation;
+        Owner.TargetScale = TargetScale;
+        
+        if (Owner.IsOverriden)
+            throw new InvalidOperationException("RenderTransform is overriden while being updated");
+        if (Owner.RegisteredContext.HasValue && RenderHelper.CurrentRenderingContext == Owner.RegisteredContext) Owner.Override();
     }
 }

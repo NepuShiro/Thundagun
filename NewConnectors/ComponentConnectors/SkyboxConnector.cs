@@ -3,7 +3,7 @@ using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
-public class SkyboxConnector : ComponentConnector<Skybox>
+public class SkyboxConnector : ComponentConnectorSingle<Skybox>
 {
     public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesSkyboxConnector(this));
 }

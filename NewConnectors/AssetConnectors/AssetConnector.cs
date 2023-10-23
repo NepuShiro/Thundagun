@@ -1,6 +1,6 @@
 using FrooxEngine;
 
-namespace Thundagun.NewConnectors.ComponentConnectors;
+namespace Thundagun.NewConnectors.AssetConnectors;
 
 public abstract class AssetConnector : IAssetConnector
 {

@@ -1,15 +1,11 @@
 using System;
-using System.Diagnostics;
-using System.Runtime.InteropServices;
 using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
-using Unity.Collections;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityFrooxEngineRunner;
 
-namespace Thundagun.NewConnectors.ComponentConnectors;
+namespace Thundagun.NewConnectors.AssetConnectors;
 
 public class TextureConnector :
     AssetConnector,
@@ -224,7 +220,7 @@ public class TextureConnector :
         var bytes = (int) MathX.BitsToBytes(num * data.Format.GetBitsPerPixel());
         var rawTextureData = _unityTexture2D.GetRawTextureData<byte>();
         for (var index = 0; index < data.RawData.Length; ++index)
-            rawTextureData[index + bytes] = data.RawData[index];
+            rawTextureData[index/* + bytes*/] = data.RawData[index];
         if (data.StartMip == 0)
         {
             _unityTexture2D?.Apply(false, !data.Hint.readable);

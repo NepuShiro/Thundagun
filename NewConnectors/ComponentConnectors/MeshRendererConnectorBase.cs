@@ -6,6 +6,7 @@ using UnityEngine;
 using UnityEngine.Rendering;
 using UnityFrooxEngineRunner;
 using Mesh = UnityEngine.Mesh;
+using MeshConnector = Thundagun.NewConnectors.AssetConnectors.MeshConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -32,7 +33,8 @@ public abstract class MeshRendererConnectorBase<T, TU> : ComponentConnectorSingl
     public virtual void OnAttachRenderer()
     {
     }
-    protected virtual void OnCleanupRenderer()
+
+    public virtual void OnCleanupRenderer()
     {
     }
 
