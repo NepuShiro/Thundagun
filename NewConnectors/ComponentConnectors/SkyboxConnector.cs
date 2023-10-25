@@ -12,14 +12,12 @@ public class ApplyChangesSkyboxConnector : UpdatePacket<SkyboxConnector>
 {
     public bool Active;
     public MaterialConnector Material;
-    public IRenderConnector RenderConnector;
-    
+
     public ApplyChangesSkyboxConnector(SkyboxConnector owner) : base(owner)
     {
         Active = !owner.Owner.ActiveSkybox || owner.World.Focus != World.WorldFocus.Focused;
         if (!Active) return;
         Material = owner.Owner.Material?.Asset?.Connector as MaterialConnector;
-        RenderConnector = owner.World.Render.Connector;
     }
 
     public override void Update()
@@ -27,6 +25,6 @@ public class ApplyChangesSkyboxConnector : UpdatePacket<SkyboxConnector>
         var mat = Material?.UnityMaterial ?? MaterialConnector.NullMaterial;
         var old = UnityEngine.RenderSettings.skybox;
         UnityEngine.RenderSettings.skybox = mat;
-        RenderConnector.UpdateDynamicGI(old != mat);
+        DynamicGIManager.ScheduleDynamicGIUpdate(old != mat);
     }
 }

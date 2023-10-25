@@ -48,7 +48,7 @@ public class ApplyChangesOverlayLayerConnector : UpdatePacket<OverlayLayerConnec
     public ApplyChangesOverlayLayerConnector(OverlayLayerConnector owner) : base(owner)
     {
         Enabled = owner.Owner.Enabled;
-        owner.SlotConnector.Owner.MarkChangeDirty();
+        owner.SlotConnector.Owner?.MarkChangeDirty();
     }
     public override void Update() => Owner.SlotConnector.ForceLayer = Enabled ? (byte) LayerMask.NameToLayer("Overlay") : (byte) 0;
 }

@@ -47,8 +47,13 @@ public class MeshConnector : AssetConnector, IMeshConnector
             if (_uploadHint[MeshUploadHint.Flag.Dynamic])
                 _mesh.MarkDynamic();
         }
+        
+        //Thundagun.Msg($"Mesh gen check: {_meshGenData._vertices.Length}");
 
         _meshGenData.Assign(_mesh, _uploadHint);
+        
+        //Thundagun.Msg($"Mesh gen check2: {_mesh.vertices.Length}");
+        
         _mesh.bounds = _bounds.ToUnity();
         _mesh.UploadMeshData(!_uploadHint[MeshUploadHint.Flag.Readable]);
         if (!_uploadHint[MeshUploadHint.Flag.Dynamic])

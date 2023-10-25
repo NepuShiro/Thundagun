@@ -123,7 +123,9 @@ public static class FrooxEngineRunnerPatch
 {
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
-    public static bool Update(FrooxEngineRunner __instance, ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld)
+    public static bool Update(FrooxEngineRunner __instance, 
+        ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld, 
+        ref HeadOutput ____vrOutput, ref HeadOutput ____screenOutput, ref AudioListener ____audioListener, ref List<World> ____worlds)
     {
         if (!__instance.IsInitialized || ____frooxEngine == null)
             return false;
@@ -146,7 +148,7 @@ public static class FrooxEngineRunnerPatch
                 //head output and framerate boilerplate
                 var focusedWorld = ____frooxEngine.WorldManager.FocusedWorld;
                 var lastFocused = ____lastFocusedWorld;
-                UpdateHeadOutput(__instance, focusedWorld);
+                UpdateHeadOutput(focusedWorld, ____frooxEngine, ____vrOutput, ____screenOutput, ____audioListener, ref ____worlds);
                 UpdateFrameRate(__instance);
                 
                 //more boilerplate
@@ -163,7 +165,23 @@ public static class FrooxEngineRunnerPatch
                 {
                     engine.RunUpdateLoop();
                 });
-                foreach (var update in updates) update.Update();
+
+                foreach (var update in updates)
+                {
+                    try
+                    {
+                        update.Update();
+                    }
+                    catch (Exception e)
+                    {
+                        Thundagun.Msg(e);
+                    }
+                }
+
+                /*
+                var count = updates.Count;
+                Thundagun.Msg($"Processed {count} packets");
+                */
                 
                 //uhhh???
                 if (focusedWorld != lastFocused)
@@ -195,9 +213,48 @@ public static class FrooxEngineRunnerPatch
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateFrameRate")]
     public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub");
-    [HarmonyReversePatch]
-    [HarmonyPatch("UpdateHeadOutput")]
-    public static void UpdateHeadOutput(object instance, World focusedWorld) => throw new NotImplementedException("stub");
+    
+    private static void UpdateHeadOutput(World focusedWorld, Engine engine, HeadOutput VR, HeadOutput screen, AudioListener listener, ref List<World> worlds)
+    {
+        if (focusedWorld == null) return;
+        var num = engine.InputInterface.VR_Active ? 1 : 0;
+        var headOutput1 = num != 0 ? VR : screen;
+        var headOutput2 = num != 0 ? screen : VR;
+        if (headOutput2 != null && headOutput2.gameObject.activeSelf) headOutput2.gameObject.SetActive(false);
+        if (!headOutput1.gameObject.activeSelf) headOutput1.gameObject.SetActive(true);
+        headOutput1.UpdatePositioning(focusedWorld);
+        Vector3 position;
+        Quaternion rotation;
+        if (focusedWorld.OverrideEarsPosition)
+        {
+            position = focusedWorld.LocalUserEarsPosition.ToUnity();
+            rotation = focusedWorld.LocalUserEarsRotation.ToUnity();
+        }
+        else
+        {
+            var cameraRoot = headOutput1.CameraRoot;
+            position = cameraRoot.position;
+            rotation = cameraRoot.rotation;
+        }
+        listener.transform.SetPositionAndRotation(position, rotation);
+        engine.WorldManager.GetWorlds(worlds);
+        var transform1 = headOutput1.transform;
+        foreach (var world in worlds)
+        {
+            if (world.Focus != World.WorldFocus.Overlay && world.Focus != World.WorldFocus.PrivateOverlay) continue;
+            var transform2 = ((WorldConnector) world.Connector).WorldRoot.transform;
+            var userGlobalPosition = world.LocalUserGlobalPosition;
+            var userGlobalRotation = world.LocalUserGlobalRotation;
+
+            var t = transform2.transform;
+            
+            t.position = transform1.position - userGlobalPosition.ToUnity();
+            t.rotation = transform1.rotation * userGlobalRotation.ToUnity();
+            t.localScale = transform1.localScale;
+        }
+        worlds.Clear();
+    }
+    
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");

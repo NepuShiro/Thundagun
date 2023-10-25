@@ -64,6 +64,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 
     public int ProcessQueue1(double maxMilliseconds)
     {
+        //Thundagun.Msg("Processing asset queue");
         while (_taskQueue.TryDequeue(out var val))
         {
             try
@@ -80,6 +81,9 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 
     private int ProcessQueue2(double maxMilliseconds)
     {
+        //Thundagun.Msg("Starting second process queue");
+        //Thundagun.Msg($"Max millis: {maxMilliseconds}");
+        //Thundagun.Msg($"Num queued: {_highpriorityQueue.Count + _processingQueue.Count}");
         var num1 = 0;
         _stopwatch.Restart();
         var hasHighPriority = false;
@@ -90,15 +94,29 @@ public class UnityAssetIntegrator : IAssetManagerConnector
             do
             {
                 var elapsedMilliseconds2 = _stopwatch.GetElapsedMilliseconds();
+                QueueAction val;
                 hasHighPriority = false;
                 var hasNormalPriority = false;
-                if (_highpriorityQueue.TryPeek(out _)) hasHighPriority = true;
-                else if (_processingQueue.TryPeek(out _)) hasNormalPriority = true;
+                if (_highpriorityQueue.TryPeek(out val)) hasHighPriority = true;
+                else if (_processingQueue.TryPeek(out val)) hasNormalPriority = true;
+                
                 if (hasHighPriority | hasNormalPriority)
                 {
+                    
                     num1++;
-                    if (hasHighPriority) _highpriorityQueue.TryDequeue(out _);
-                    else _processingQueue.TryDequeue(out _);
+                    var actionDone = false;
+                    if (val.Action != null)
+                    {
+                        val.Action();
+                        actionDone = true;
+                    }
+                    else if (!val.Coroutine.MoveNext()) actionDone = true;
+                    if (actionDone)
+                    {
+                        if (hasHighPriority) _highpriorityQueue.TryDequeue(out _);
+                        else _processingQueue.TryDequeue(out _);
+                    }
+                    
                     elapsedMilliseconds1 = _stopwatch.GetElapsedMilliseconds();
                     num2 = elapsedMilliseconds1 - elapsedMilliseconds2;
                 }
@@ -114,6 +132,9 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         }
 
         _maxMilliseconds = maxMilliseconds - _stopwatch.GetElapsedMilliseconds();
+        
+        //Thundagun.Msg($"Num processed: {num1}");
+        
         return num1;
     }
 

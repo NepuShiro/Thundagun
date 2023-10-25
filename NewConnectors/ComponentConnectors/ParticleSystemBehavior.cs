@@ -2,7 +2,6 @@ using System;
 using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
-using UnityEngine.Rendering;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
@@ -17,7 +16,7 @@ public class ParticleSystemBehavior : ConnectorBehaviour<ParticleSystemConnector
 
 	internal int lastCount;
 
-	internal Slot lastSpace;
+	internal SlotConnector lastSpace;
 
 	internal UnityEngine.ParticleSystem pSystem;
 
@@ -31,156 +30,25 @@ public class ParticleSystemBehavior : ConnectorBehaviour<ParticleSystemConnector
 
 	internal UnityEngine.ParticleSystem.Particle[] _particles;
 
-	private RandomXGenerator random = new RandomXGenerator(RandomX.Int);
+	private RandomXGenerator random = new(RandomX.Int);
 
 	private const int GRANULARITY = 100;
 
-	internal FrooxEngine.ParticleSystem FrooxEngineParticleSystem => base.Connector.Owner;
+	internal FrooxEngine.ParticleSystem FrooxEngineParticleSystem => Connector.Owner;
 
 	internal ParticleStyle ParticleStyle => FrooxEngineParticleSystem.Style.Target;
 
-	internal PhysicsManager Physics => base.Connector?.World?.Physics;
-
-	internal void UpdateStyle()
-	{
-		var main = pSystem.main;
-		var textureSheetAnimation = pSystem.textureSheetAnimation;
-		main.maxParticles = FrooxEngineParticleSystem.MaxParticles;
-		var space = FrooxEngineParticleSystem.SimulationSpace.Space;
-		if (lastSpace != space)
-		{
-			lastSpace = space;
-			if (space.IsRootSlot)
-			{
-				main.simulationSpace = ParticleSystemSimulationSpace.World;
-			}
-			else
-			{
-				main.simulationSpace = ParticleSystemSimulationSpace.Custom;
-				main.customSimulationSpace = ((SlotConnector)space.Connector).ForceGetGameObject().transform;
-			}
-		}
-		var particleStyle = ParticleStyle;
-		if (particleStyle != null)
-		{
-			pRenderer.enabled = true;
-			pRenderer.motionVectorGenerationMode = particleStyle.MotionVectorMode.Value.ToUnity();
-			pRenderer.reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox;
-			pRenderer.alignment = particleStyle.Alignment.Value.ToUnity();
-			pRenderer.allowRoll = particleStyle.Alignment.Value != ParticleAlignment.Facing;
-			pRenderer.material = particleStyle.Material.Asset.GetUnity();
-			pRenderer.trailMaterial = particleStyle.TrailMaterial.Asset.GetUnity();
-			pRenderer.mesh = particleStyle.Mesh.Asset.GetUnity();
-			pRenderer.minParticleSize = particleStyle.MinParticleSize.Value;
-			pRenderer.maxParticleSize = particleStyle.MaxParticleSize.Value;
-			main.gravityModifier = particleStyle.GravityStrength.Value;
-			var colorOverLifetime = pSystem.colorOverLifetime;
-			colorOverLifetime.enabled = particleStyle.UseColorOverLifetime.Value;
-			if (colorOverLifetime.enabled)
-			{
-				var array = new GradientColorKey[particleStyle.ColorOverLifetime.Count];
-				var array2 = new GradientAlphaKey[particleStyle.AlphaOverLifetime.Count];
-				for (var i = 0; i < array.Length; i++)
-				{
-					var linearKey = particleStyle.ColorOverLifetime[i];
-					array[i] = new GradientColorKey(linearKey.value.ToUnity(ColorProfile.sRGB), linearKey.time);
-				}
-				for (var j = 0; j < array2.Length; j++)
-				{
-					var linearKey2 = particleStyle.AlphaOverLifetime[j];
-					array2[j] = new GradientAlphaKey(linearKey2.value, linearKey2.time);
-				}
-				var gradient = new Gradient();
-				gradient.alphaKeys = array2;
-				gradient.colorKeys = array;
-				colorOverLifetime.color = new UnityEngine.ParticleSystem.MinMaxGradient(gradient);
-			}
-			if (pRenderer.mesh != null)
-			{
-				pRenderer.renderMode = ParticleSystemRenderMode.Mesh;
-			}
-			else if (MathX.Approximately(particleStyle.LengthScale.Value, 1f) && MathX.Approximately(particleStyle.VelocityScale.Value, 0f))
-			{
-				pRenderer.renderMode = ParticleSystemRenderMode.Billboard;
-			}
-			else
-			{
-				pRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-				pRenderer.lengthScale = particleStyle.LengthScale;
-				pRenderer.velocityScale = particleStyle.VelocityScale;
-			}
-			int2 v = particleStyle.AnimationTiles;
-			if (MathX.MaxComponent(in v) > 1)
-			{
-				textureSheetAnimation.enabled = true;
-				textureSheetAnimation.numTilesX = particleStyle.AnimationTiles.Value.x;
-				textureSheetAnimation.numTilesY = particleStyle.AnimationTiles.Value.y;
-				textureSheetAnimation.cycleCount = particleStyle.AnimationCycles;
-				textureSheetAnimation.animation = particleStyle.AnimationType.Value.ToUnity();
-				textureSheetAnimation.rowMode = (particleStyle.UseRandomRow ? ParticleSystemAnimationRowMode.Random : ParticleSystemAnimationRowMode.Custom);
-				textureSheetAnimation.rowIndex = particleStyle.UseRowIndex;
-			}
-			else
-			{
-				textureSheetAnimation.enabled = false;
-			}
-			if (particleStyle.ParticleTrails.Value == ParticleTrailMode.None)
-			{
-				pTrail.enabled = false;
-			}
-			else
-			{
-				pTrail.enabled = true;
-				pTrail.mode = particleStyle.ParticleTrails.Value == ParticleTrailMode.PerParticle ? ParticleSystemTrailMode.PerParticle : ParticleSystemTrailMode.Ribbon;
-				pTrail.ratio = particleStyle.TrailRatio;
-				pTrail.minVertexDistance = particleStyle.TrailMinimumVertexDistance;
-				pTrail.worldSpace = particleStyle.TrailWorldSpace;
-				pTrail.dieWithParticles = particleStyle.TrailDiesWithParticle;
-				pTrail.ribbonCount = particleStyle.RibbonCount;
-				pTrail.sizeAffectsWidth = particleStyle.ParticleSizeAffectsTrailWidth;
-				pTrail.sizeAffectsLifetime = particleStyle.ParticleSizeAffectsTrailLifetime;
-				pTrail.inheritParticleColor = particleStyle.InheritTrailColorFromParticle;
-				pTrail.generateLightingData = particleStyle.GenerateLightingDataForTrails;
-				pTrail.textureMode = (ParticleSystemTrailTextureMode)particleStyle.TrailTextureMode.Value;
-				pTrail.lifetime = new UnityEngine.ParticleSystem.MinMaxCurve(particleStyle.MinTrailLifetime, particleStyle.MaxTrailLifetime);
-				var c = particleStyle.MinTrailColor.Value;
-				var min = c.ToUnityAuto(base.Connector.Engine);
-				var c2 = particleStyle.MaxTrailColor.Value;
-				pTrail.colorOverLifetime = new UnityEngine.ParticleSystem.MinMaxGradient(min, c2.ToUnityAuto(base.Connector.Engine));
-				pTrail.widthOverTrail = new UnityEngine.ParticleSystem.MinMaxCurve(particleStyle.MinTrailWidth, particleStyle.MaxTrailWidth);
-			}
-			if (particleStyle.Light.Target == null)
-			{
-				pLights.enabled = false;
-				return;
-			}
-			pLights.enabled = true;
-			pLights.light = ((LightConnector)particleStyle.Light.Target.Connector).UnityLight;
-			pLights.ratio = particleStyle.LightsRatio;
-			pLights.useRandomDistribution = particleStyle.LightRandomDistribution;
-			pLights.useParticleColor = particleStyle.LightsUseParticleColor;
-			pLights.sizeAffectsRange = particleStyle.SizeAffectsLightRange;
-			pLights.alphaAffectsIntensity = particleStyle.AlphaAffectsLightIntensity;
-			pLights.rangeMultiplier = particleStyle.LightRangeMultiplier;
-			pLights.intensityMultiplier = particleStyle.LightIntensityMultiplier;
-			pLights.maxLights = particleStyle.MaximumLights;
-		}
-		else if (pRenderer.enabled)
-		{
-			pSystem.Clear();
-			pRenderer.enabled = false;
-		}
-	}
-
+	internal PhysicsManager Physics => Connector?.World?.Physics;
+	
 	public void Init()
 	{
 		if (!ParticleSystemWorker.Initialized)
 		{
 			new GameObject("ParticleSystemManager").AddComponent<ParticleSystemWorker>();
-			ParticleSystemWorker.RegisterJobProcessor(base.Connector.Owner.Engine.WorkProcessor);
+			ParticleSystemWorker.RegisterJobProcessor(Connector.Owner.Engine.WorkProcessor);
 		}
 		var o = new GameObject("ParticleSystem");
-		o.transform.SetParent(base.transform, worldPositionStays: false);
+		o.transform.SetParent(transform, worldPositionStays: false);
 		pSystem = o.AddComponent<UnityEngine.ParticleSystem>();
 		pRenderer = o.GetComponent<ParticleSystemRenderer>();
 		var main = pSystem.main;
@@ -198,6 +66,7 @@ public class ParticleSystemBehavior : ConnectorBehaviour<ParticleSystemConnector
 
 	private void LateUpdate()
 	{
+		//TODO
 		if (ParticleStyle == null) return;
 		var particleStyle = ParticleStyle;
 		var emitParams = default(UnityEngine.ParticleSystem.EmitParams);

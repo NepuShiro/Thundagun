@@ -2,25 +2,18 @@ using System.Linq;
 using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
+using UnityEngine.Rendering;
 using UnityFrooxEngineRunner;
 using ParticleSystem = FrooxEngine.ParticleSystem;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
-public class ParticleSystemConnector : 
+public class ParticleSystemConnector :
     UnityComponentConnector<ParticleSystem, ParticleSystemBehavior>
 {
     public override IUpdatePacket InitializePacket() => new InitializeParticleSystemConnector(this, Owner);
 
-    public override void ApplyChanges()
-    {
-        if (Owner.ShouldBeEnabled)
-        {
-            UnityComponent.enabled = true;
-            UnityComponent.UpdateStyle();
-        }
-        else UnityComponent.enabled = false;
-    }
+    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesParticleSystemConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {
@@ -32,7 +25,8 @@ public class ParticleSystemConnector :
 public class InitializeParticleSystemConnector : InitializeUnityComponentConnector<ParticleSystem,
     ParticleSystemBehavior, ParticleSystemConnector>
 {
-    public InitializeParticleSystemConnector(ParticleSystemConnector connector, ParticleSystem component) : base(connector, component)
+    public InitializeParticleSystemConnector(ParticleSystemConnector connector, ParticleSystem component) : base(
+        connector, component)
     {
     }
 
@@ -55,9 +49,9 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
     public MotionVectorGenerationMode MotionVectorGenerationMode;
     public ParticleSystemRenderSpace Alignment;
     public bool AllowRoll;
-    public IMaterialConnector Material;
-    public IMaterialConnector TrailMaterial;
-    public IMeshConnector Mesh;
+    public MaterialConnector Material;
+    public MaterialConnector TrailMaterial;
+    public AssetConnectors.MeshConnector Mesh;
     public float MinParticleSize;
     public float MaxParticleSize;
     public float GravityModifier;
@@ -100,12 +94,13 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
     public int LightsMaxLights;
     private ParticleSystem ParticleSystem => Owner.Owner;
     private ParticleStyle ParticleStyle => ParticleSystem.Style.Target;
-    
+
     public ApplyChangesParticleSystemConnector(ParticleSystemConnector owner) : base(owner)
     {
         ShouldBeEnabled = ParticleSystem.ShouldBeEnabled;
         if (ShouldBeEnabled)
         {
+            MaxParticles = ParticleSystem.MaxParticles.Value;
             Space = ParticleSystem.SimulationSpace.Space.Connector as SlotConnector;
             SpaceIsRoot = Space?.Owner.IsRootSlot ?? false;
             if (ParticleStyle is not null)
@@ -114,9 +109,9 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                 MotionVectorGenerationMode = ParticleStyle.MotionVectorMode.Value.ToUnity();
                 Alignment = ParticleStyle.Alignment.Value.ToUnity();
                 AllowRoll = ParticleStyle.Alignment.Value != ParticleAlignment.Facing;
-                Material = ParticleStyle.Material.Asset.Connector;
-                TrailMaterial = ParticleStyle.TrailMaterial.Asset.Connector;
-                Mesh = ParticleStyle.Mesh?.Asset?.Connector;
+                Material = ParticleStyle.Material?.Asset?.Connector as MaterialConnector;
+                TrailMaterial = ParticleStyle.TrailMaterial?.Asset?.Connector as MaterialConnector;
+                Mesh = ParticleStyle.Mesh?.Asset?.Connector as AssetConnectors.MeshConnector;
                 MinParticleSize = ParticleStyle.MinParticleSize.Value;
                 MaxParticleSize = ParticleStyle.MaxParticleSize.Value;
                 GravityModifier = ParticleStyle.GravityStrength.Value;
@@ -125,10 +120,13 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                 {
                     ColorOverLifetimeGradient = new UnityEngine.ParticleSystem.MinMaxGradient(new Gradient
                     {
-                        alphaKeys = ParticleStyle.AlphaOverLifetime.Select(i => new GradientAlphaKey(i.value, i.time)).ToArray(),
-                        colorKeys = ParticleStyle.ColorOverLifetime.Select(i => new GradientColorKey(i.value.ToUnity(ColorProfile.sRGB), i.time)).ToArray()
+                        alphaKeys = ParticleStyle.AlphaOverLifetime.Select(i => new GradientAlphaKey(i.value, i.time))
+                            .ToArray(),
+                        colorKeys = ParticleStyle.ColorOverLifetime
+                            .Select(i => new GradientColorKey(i.value.ToUnity(ColorProfile.sRGB), i.time)).ToArray()
                     });
                 }
+
                 if (Mesh is not null)
                 {
                     RenderMode = ParticleSystemRenderMode.Mesh;
@@ -144,7 +142,7 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                     LengthScale = ParticleStyle.LengthScale.Value;
                     VelocityScale = ParticleStyle.VelocityScale.Value;
                 }
-                
+
                 if (MathX.MaxComponent(ParticleStyle.AnimationTiles) > 1)
                 {
                     TextureSheetEnabled = true;
@@ -152,7 +150,9 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                     TextureSheetNumTilesY = ParticleStyle.AnimationTiles.Value.y;
                     TextureSheetCycleCount = ParticleStyle.AnimationCycles.Value;
                     TextureSheetAnimation = ParticleStyle.AnimationType.Value.ToUnity();
-                    TextureSheetRowMode = (ParticleStyle.UseRandomRow ? ParticleSystemAnimationRowMode.Random : ParticleSystemAnimationRowMode.Custom);
+                    TextureSheetRowMode = (ParticleStyle.UseRandomRow
+                        ? ParticleSystemAnimationRowMode.Random
+                        : ParticleSystemAnimationRowMode.Custom);
                     TextureSheetRowIndex = ParticleStyle.UseRowIndex.Value;
                 }
 
@@ -160,7 +160,9 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                 else
                 {
                     TrailEnabled = true;
-                    TrailMode = ParticleStyle.ParticleTrails.Value == ParticleTrailMode.PerParticle ? ParticleSystemTrailMode.PerParticle : ParticleSystemTrailMode.Ribbon;
+                    TrailMode = ParticleStyle.ParticleTrails.Value == ParticleTrailMode.PerParticle
+                        ? ParticleSystemTrailMode.PerParticle
+                        : ParticleSystemTrailMode.Ribbon;
                     TrailRatio = ParticleStyle.TrailRatio.Value;
                     TrailMinVertexDistance = ParticleStyle.TrailMinimumVertexDistance.Value;
                     TrailWorldSpace = ParticleStyle.TrailWorldSpace.Value;
@@ -170,22 +172,24 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                     TrailSizeAffectsLifetime = ParticleStyle.ParticleSizeAffectsTrailLifetime.Value;
                     TrailInheritParticleColor = ParticleStyle.InheritTrailColorFromParticle.Value;
                     TrailGenerateLightingData = ParticleStyle.GenerateLightingDataForTrails.Value;
-                    TrailTextureMode = (ParticleSystemTrailTextureMode)ParticleStyle.TrailTextureMode.Value;
-                    TrailLifetime = new UnityEngine.ParticleSystem.MinMaxCurve(ParticleStyle.MinTrailLifetime.Value, ParticleStyle.MaxTrailLifetime.Value);
-                    TrailColorOverLifetime = 
+                    TrailTextureMode = (ParticleSystemTrailTextureMode) ParticleStyle.TrailTextureMode.Value;
+                    TrailLifetime = new UnityEngine.ParticleSystem.MinMaxCurve(ParticleStyle.MinTrailLifetime.Value,
+                        ParticleStyle.MaxTrailLifetime.Value);
+                    TrailColorOverLifetime =
                         new UnityEngine.ParticleSystem.MinMaxGradient(
-                            ParticleStyle.MinTrailColor.Value.ToUnityAuto(Owner.Engine), 
+                            ParticleStyle.MinTrailColor.Value.ToUnityAuto(Owner.Engine),
                             ParticleStyle.MaxTrailColor.Value.ToUnityAuto(Owner.Engine)
-                            );
-                    TrailWidthOverTrail = new UnityEngine.ParticleSystem.MinMaxCurve(ParticleStyle.MinTrailWidth.Value, ParticleStyle.MaxTrailWidth.Value);
+                        );
+                    TrailWidthOverTrail = new UnityEngine.ParticleSystem.MinMaxCurve(ParticleStyle.MinTrailWidth.Value,
+                        ParticleStyle.MaxTrailWidth.Value);
                 }
-                
+
                 if (ParticleStyle.Light.Target == null)
                 {
                     LightsEnabled = false;
                     return;
                 }
-                
+
                 LightsEnabled = true;
                 LightsLight = ParticleStyle.Light.Target.Connector as LightConnector;
                 LightsRatio = ParticleStyle.LightsRatio.Value;
@@ -202,6 +206,123 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
 
     public override void Update()
     {
-        
+        var comp = Owner.UnityComponent;
+        if (ShouldBeEnabled)
+        {
+            comp.enabled = true;
+            var main = comp.pSystem.main;
+            var textureSheetAnimation = comp.pSystem.textureSheetAnimation;
+            main.maxParticles = MaxParticles;
+            if (comp.lastSpace != Space)
+            {
+                comp.lastSpace = Space;
+                if (SpaceIsRoot)
+                    main.simulationSpace = ParticleSystemSimulationSpace.World;
+                else
+                {
+                    main.simulationSpace = ParticleSystemSimulationSpace.Custom;
+                    main.customSimulationSpace = Space.ForceGetGameObject().transform;
+                }
+            }
+
+            if (StyleEnabled)
+            {
+                var pRenderer = comp.pRenderer;
+                pRenderer.enabled = true;
+                pRenderer.motionVectorGenerationMode = MotionVectorGenerationMode;
+                pRenderer.reflectionProbeUsage = ReflectionProbeUsage.BlendProbesAndSkybox;
+                pRenderer.alignment = Alignment;
+                pRenderer.allowRoll = AllowRoll;
+                pRenderer.material = Material?.UnityMaterial;
+                pRenderer.trailMaterial = TrailMaterial?.UnityMaterial;
+                pRenderer.mesh = Mesh?.Mesh;
+                pRenderer.minParticleSize = MinParticleSize;
+                pRenderer.maxParticleSize = MaxParticleSize;
+                main.gravityModifier = GravityModifier;
+                var colorOverLifetime = comp.pSystem.colorOverLifetime;
+                if (UseColorOverLifetime)
+                {
+                    colorOverLifetime.enabled = true;
+                    colorOverLifetime.color = ColorOverLifetimeGradient;
+                }
+                else
+                {
+                    colorOverLifetime.enabled = false;
+                }
+
+                pRenderer.renderMode = RenderMode;
+                if (RenderMode == ParticleSystemRenderMode.Stretch)
+                {
+                    pRenderer.lengthScale = LengthScale;
+                    pRenderer.velocityScale = VelocityScale;
+                }
+
+                if (TextureSheetEnabled)
+                {
+                    textureSheetAnimation.enabled = true;
+                    textureSheetAnimation.numTilesX = TextureSheetNumTilesX;
+                    textureSheetAnimation.numTilesY = TextureSheetNumTilesY;
+                    textureSheetAnimation.cycleCount = TextureSheetCycleCount;
+                    textureSheetAnimation.animation = TextureSheetAnimation;
+                    textureSheetAnimation.rowMode = TextureSheetRowMode;
+                    textureSheetAnimation.rowIndex = TextureSheetRowIndex;
+                }
+                else
+                {
+                    textureSheetAnimation.enabled = false;
+                }
+
+                var pTrail = comp.pTrail;
+                if (!TrailEnabled)
+                {
+                    pTrail.enabled = false;
+                }
+                else
+                {
+                    pTrail.enabled = true;
+                    pTrail.mode = TrailMode;
+                    pTrail.ratio = TrailRatio;
+                    pTrail.minVertexDistance = TrailMinVertexDistance;
+                    pTrail.worldSpace = TrailWorldSpace;
+                    pTrail.dieWithParticles = TrailDieWithParticles;
+                    pTrail.ribbonCount = TrailRibbonCount;
+                    pTrail.sizeAffectsWidth = TrailSizeAffectsWidth;
+                    pTrail.sizeAffectsLifetime = TrailSizeAffectsLifetime;
+                    pTrail.inheritParticleColor = TrailInheritParticleColor;
+                    pTrail.generateLightingData = TrailGenerateLightingData;
+                    pTrail.textureMode = TrailTextureMode;
+                    pTrail.lifetime = TrailLifetime;
+                    pTrail.colorOverLifetime = TrailColorOverLifetime;
+                    pTrail.widthOverTrail = TrailWidthOverTrail;
+                }
+
+                var pLights = comp.pLights;
+                if (!LightsEnabled)
+                {
+                    pLights.enabled = false;
+                    return;
+                }
+
+                pLights.enabled = true;
+                pLights.light = LightsLight.UnityLight;
+                pLights.ratio = LightsRatio;
+                pLights.useRandomDistribution = LightsUseRandomDistribution;
+                pLights.useParticleColor = LightsUseParticleColor;
+                pLights.sizeAffectsRange = LightsSizeAffectsRange;
+                pLights.alphaAffectsIntensity = LightsAlphaAffectsIntensity;
+                pLights.rangeMultiplier = LightsRangeMultiplier;
+                pLights.intensityMultiplier = LightsIntensityMultiplier;
+                pLights.maxLights = LightsMaxLights;
+            }
+            else if (comp.pRenderer.enabled)
+            {
+                comp.pSystem.Clear();
+                comp.pRenderer.enabled = false;
+            }
+        }
+        else
+        {
+            comp.enabled = false;
+        }
     }
 }

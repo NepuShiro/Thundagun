@@ -7,6 +7,8 @@ using UnityEngine.Rendering;
 using UnityFrooxEngineRunner;
 using Mesh = UnityEngine.Mesh;
 using MeshConnector = Thundagun.NewConnectors.AssetConnectors.MeshConnector;
+using MaterialConnector = Thundagun.NewConnectors.AssetConnectors.MaterialConnector;
+using MaterialPropertyBlockConnector = Thundagun.NewConnectors.AssetConnectors.MaterialPropertyBlockConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -92,7 +94,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
         if (ShouldBeEnabled)
         {
             MeshWasChanged = owner.Owner.Mesh.GetWasChangedAndClear();
-            Mesh = owner.Owner.Mesh.Asset.Connector as MeshConnector;
+            Mesh = owner.Owner.Mesh?.Asset?.Connector as MeshConnector;
             MaterialsChanged = owner.Owner.MaterialsChanged;
             IsLocalElement = Owner.Owner.IsLocalElement;
             owner.Owner.MaterialsChanged = false;
@@ -112,6 +114,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
 
     public override void Update()
     {
+        //Thundagun.Msg($"Should be Enabled: {ShouldBeEnabled}");
         if (!ShouldBeEnabled)
         {
             Owner.CleanupRenderer(false);
@@ -133,7 +136,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
             
             if (MeshWasChanged || instantiated)
             {
-                var unity = Mesh.Mesh;
+                var unity = Mesh?.Mesh;
                 if (Owner.UseMeshFilter) Owner.MeshFilter.sharedMesh = unity;
                 else Owner.AssignMesh(Owner.MeshRenderer, unity);
             }

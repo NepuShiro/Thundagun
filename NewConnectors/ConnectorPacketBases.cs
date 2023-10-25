@@ -12,12 +12,11 @@ public class InitializeComponentConnector<TD, TC, T> : UpdatePacket<T>
     public SlotConnector Connector;
     public InitializeComponentConnector(T connector, TD component) : base(connector)
     {
-        Connector = (SlotConnector) component.Slot.Connector;
+        Owner.SlotConnector = (SlotConnector) component.Slot.Connector;
     }
 
     public override void Update()
     {
-        Owner.SlotConnector = Connector;
         Owner.AttachedGameObject = Owner.SlotConnector.RequestGameObject();
     }
 }

@@ -86,8 +86,8 @@ public class ApplyChangesLightConnector : UpdatePacket<LightConnector>
         ShadowBias = owner.Owner.ShadowBias.Value;
         ShadowNormalBias = owner.Owner.ShadowNormalBias.Value;
         Cookie = owner.Owner.Cookie.Target != null
-            ? owner.Owner.Cookie.Asset.Connector as IUnityTextureProvider ??
-              owner.Owner.Engine.AssetManager.DarkCheckerCubemap.Connector as IUnityTextureProvider
+            ? owner.Owner.Cookie?.Asset?.Connector as IUnityTextureProvider ??
+              owner.Owner.Engine?.AssetManager?.DarkCheckerCubemap?.Connector as IUnityTextureProvider
             : null;
     }
 
@@ -107,6 +107,6 @@ public class ApplyChangesLightConnector : UpdatePacket<LightConnector>
         Owner.UnityLight.shadowCustomResolution = ShadowCustomResolution;
         Owner.UnityLight.shadowBias = ShadowBias;
         Owner.UnityLight.shadowNormalBias = ShadowNormalBias;
-        Owner.UnityLight.cookie = Cookie.UnityTexture;
+        Owner.UnityLight.cookie = Cookie?.UnityTexture;
     }
 }
