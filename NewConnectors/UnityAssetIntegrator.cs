@@ -17,7 +17,7 @@ namespace Thundagun.NewConnectors;
 
 public class UnityAssetIntegrator : IAssetManagerConnector
 {
-    private static UnityAssetIntegrator _instance;
+    public static UnityAssetIntegrator _instance;
     internal static SharpDX.Direct3D11.Device _dx11device;
     private SpinQueue<QueueAction> _highpriorityQueue = new();
     private SpinQueue<QueueAction> _processingQueue = new();

@@ -1,6 +1,5 @@
 using FrooxEngine;
 using UnityFrooxEngineRunner;
-using Thundagun.NewConnectors.AssetConnectors;
 using MaterialConnector = Thundagun.NewConnectors.AssetConnectors.MaterialConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;

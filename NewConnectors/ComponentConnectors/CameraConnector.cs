@@ -108,8 +108,26 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
             if (owner.Owner.Postprocessing) SetupPostProcessing = true;
             else RemovePostProcessing = true;
         }
+
+        var a = owner.Owner.RenderTexture is not null;
+        Thundagun.Msg(a);
+        if (a)
+        {
+            var b = owner.Owner.RenderTexture.Asset is not null;
+            Thundagun.Msg(b);
+            if (b)
+            {
+                var c = owner.Owner.RenderTexture.Asset.Connector is not null;
+                Thundagun.Msg(c);
+                if (c)
+                {
+                    Thundagun.Msg(owner.Owner.RenderTexture.Asset.Connector.GetType().ToString());
+                }
+            }
+        }
         
-        Texture = owner.Owner.RenderTexture.Asset.Connector as RenderTextureConnector;
+        
+        Texture = owner.Owner.RenderTexture?.Asset?.Connector as RenderTextureConnector;
         DoubleBuffer = owner.Owner.DoubleBuffered.Value;
 
         SelectiveRender = owner.Owner.SelectiveRender.Select(i => i.Connector as SlotConnector).Where(i => i is not null).ToList();
@@ -145,7 +163,7 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
             else CameraInitializer.RemovePostProcessing(Owner.UnityCamera);
         }
         
-        Owner.RenderEx.Texture = Texture.RenderTexture;
+        Owner.RenderEx.Texture = Texture?.RenderTexture;
         Owner.RenderEx.DoubleBuffer = DoubleBuffer && !PostprocessingSetup;
         Owner.RenderEx.SelectiveRender.Clear();
         Owner.RenderEx.ExcludeRender.Clear();

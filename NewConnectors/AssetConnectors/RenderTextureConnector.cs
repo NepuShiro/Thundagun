@@ -9,7 +9,6 @@ namespace Thundagun.NewConnectors.AssetConnectors;
 public class RenderTextureConnector :
     AssetConnector,
     IRenderTextureConnector,
-    IAssetConnector,
     IUnityTextureProvider
 {
     public int2 Size { get; private set; }
@@ -22,10 +21,10 @@ public class RenderTextureConnector :
 
     public override void Unload()
     {
+        var _tex = RenderTexture;
+        RenderTexture = null;
         UnityAssetIntegrator.EnqueueProcessing(() =>
         {
-            var _tex = RenderTexture;
-            RenderTexture = null;
             if (!(_tex != null))
                 return;
             if (!_tex)

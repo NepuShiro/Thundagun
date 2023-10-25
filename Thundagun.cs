@@ -160,12 +160,16 @@ public static class FrooxEngineRunnerPatch
                 //then, we clear the original list and start the async update task
                 var updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
                 Thundagun.CurrentPackets.Clear();
-                
                 var engine = ____frooxEngine;
                 Thundagun.CurrentTask = Task.Run(() =>
                 {
                     engine.RunUpdateLoop();
                 });
+
+                if (UnityAssetIntegrator._instance is not null)
+                {
+                    Engine.Current.AssetsUpdated(UnityAssetIntegrator._instance.ProcessQueue1(1000));
+                }
 
                 foreach (var update in updates)
                 {
