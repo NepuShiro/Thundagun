@@ -33,12 +33,12 @@ namespace Thundagun.NewConnectors
         }
         public GameObject RequestGameObject()
         {
-            ++GameObjectRequests;
+            GameObjectRequests++;
             return ForceGetGameObject();
         }
         public void FreeGameObject()
         {
-            --GameObjectRequests;
+            GameObjectRequests--;
             TryDestroy();
         }
 
@@ -48,8 +48,7 @@ namespace Thundagun.NewConnectors
                 return;
             if (!destroyingWorld)
             {
-                if ((bool) (Object) GeneratedGameObject)
-                    Object.Destroy(GeneratedGameObject);
+                if (GeneratedGameObject) Object.Destroy(GeneratedGameObject);
                 ParentConnector?.FreeGameObject();
             }
             GeneratedGameObject = null;
@@ -85,9 +84,11 @@ namespace Thundagun.NewConnectors
         }
         public override void Initialize()
         {
+            ParentConnector = Owner.Parent?.Connector as SlotConnector;
+            Thundagun.QueuePacket(new ApplyChangesSlotConnector(this, true));
         }
 
-        public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesSlotConnector(this));
+        public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesSlotConnector(this));
 
         public void SetData()
         {
@@ -99,7 +100,7 @@ namespace Thundagun.NewConnectors
         }
         
         public override void Destroy(bool destroyingWorld) =>
-            Thundagun.CurrentPackets.Add(new DestroySlotConnector(this, destroyingWorld));
+            Thundagun.QueuePacket(new DestroySlotConnector(this, destroyingWorld));
     }
 
     public class ApplyChangesSlotConnector : UpdatePacket<SlotConnector>
@@ -114,6 +115,26 @@ namespace Thundagun.NewConnectors
         public Quaternion Rotation;
         public bool ScaleChanged;
         public Vector3 Scale;
+        
+        public ApplyChangesSlotConnector(SlotConnector owner, bool forceReparent) : base(owner)
+        {
+            var o = owner.Owner;
+            var parent = o.Parent;
+            if ((parent?.Connector != owner.ParentConnector && parent != null) || forceReparent)
+            {
+                Reparent = true;
+                NewParentSlot = o.Parent.Connector as SlotConnector;
+            }
+
+            ActiveChanged = o.ActiveSelf_Field.GetWasChangedAndClear();
+            Active = o.ActiveSelf;
+            PositionChanged = o.Position_Field.GetWasChangedAndClear();
+            Position = o.Position_Field.Value.ToUnity();
+            RotationChanged = o.Rotation_Field.GetWasChangedAndClear();
+            Rotation = o.Rotation_Field.Value.ToUnity();
+            ScaleChanged = o.Scale_Field.GetWasChangedAndClear();
+            Scale = o.Scale_Field.Value.ToUnity();
+        }
             
         public ApplyChangesSlotConnector(SlotConnector owner) : base(owner)
         {
@@ -129,6 +150,8 @@ namespace Thundagun.NewConnectors
             Active = o.ActiveSelf;
             PositionChanged = o.Position_Field.GetWasChangedAndClear();
             Position = o.Position_Field.Value.ToUnity();
+            RotationChanged = o.Rotation_Field.GetWasChangedAndClear();
+            Rotation = o.Rotation_Field.Value.ToUnity();
             ScaleChanged = o.Scale_Field.GetWasChangedAndClear();
             Scale = o.Scale_Field.Value.ToUnity();
         }

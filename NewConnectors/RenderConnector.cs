@@ -19,7 +19,7 @@ public class RenderConnector : IRenderConnector
     
     public void Initialize(RenderManager manager)
     {
-        Thundagun.CurrentPackets.Add(new InitializeRenderConnector(this));
+        Thundagun.QueuePacket(new InitializeRenderConnector(this));
     }
 
     public GameObject GetGameObject(Slot slot) => ((SlotConnector) slot.Connector).GeneratedGameObject;

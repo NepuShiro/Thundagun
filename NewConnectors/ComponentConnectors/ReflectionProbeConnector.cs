@@ -19,7 +19,7 @@ public class ReflectionProbeConnector : ComponentConnector<ReflectionProbe, IRef
 
 	public override IUpdatePacket InitializePacket() => new InitializeReflectionProbeConnector(this, Owner);
 
-	public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesReflectionProbeConnector(this));
+	public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesReflectionProbeConnector(this));
 
 	public override void DestroyMethod(bool destroyingWorld)
 	{

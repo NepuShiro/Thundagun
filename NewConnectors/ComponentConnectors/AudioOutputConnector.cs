@@ -12,7 +12,7 @@ public class AudioOutputConnector : ComponentConnectorSingle<AudioOutput>
 
     public AudioSource UnityAudioSource => _outputBehavior?._unityAudio;
     
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesAudioOutputConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesAudioOutputConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

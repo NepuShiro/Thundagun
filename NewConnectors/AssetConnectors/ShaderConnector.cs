@@ -14,10 +14,7 @@ public class ShaderConnector : AssetConnector, IShaderConnector
 
 	public UnityEngine.Shader UnityShader { get; private set; }
 
-	public void LoadFromFile(string file, AssetIntegrated onLoaded)
-	{
-		UnityAssetIntegrator.EnqueueProcessing(LoadShader(file, onLoaded), highPriority: true);
-	}
+	public void LoadFromFile(string file, AssetIntegrated onLoaded) => UnityAssetIntegrator.EnqueueProcessing(LoadShader(file, onLoaded), highPriority: true);
 
 	private IEnumerator LoadShader(string file, AssetIntegrated onLoaded)
 	{
@@ -69,10 +66,7 @@ public class ShaderConnector : AssetConnector, IShaderConnector
 		yield break;
 	}
 
-	public override void Unload()
-	{
-		UnityAssetIntegrator.EnqueueProcessing(UnloadImmediate, highPriority: true);
-	}
+	public override void Unload() => UnityAssetIntegrator.EnqueueProcessing(UnloadImmediate, highPriority: true);
 
 	private void UnloadImmediate()
 	{

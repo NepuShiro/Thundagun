@@ -40,7 +40,7 @@ public abstract class MeshRendererConnectorBase<T, TU> : ComponentConnectorSingl
     {
     }
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesMeshRendererConnectorBase<T, TU>(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesMeshRendererConnectorBase<T, TU>(this));
 
     public void CleanupRenderer(bool destroyingWorld)
     {
@@ -153,20 +153,13 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                 {
                     Owner.UnityMaterials = Owner.UnityMaterials.EnsureExactSize(Materials.Count, allowZeroSize: true);
                     for (var i = 0; i < Owner.UnityMaterials.Length; i++)
-                    {
-                        var material = Materials[i] as MaterialConnector;
-                        var unity = material?.UnityMaterial;
-                        Owner.UnityMaterials[i] = unity;
-                    }
+                        Owner.UnityMaterials[i] = (Materials[i] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
                     Owner.MeshRenderer.sharedMaterials = Owner.UnityMaterials;
                     MaterialCount = Owner.UnityMaterials.Length;
                 }
                 else if (Materials.Count == 1)
-                {
-                    var material = Materials[0] as MaterialConnector;
-                    var unity = material?.UnityMaterial;
-                    Owner.MeshRenderer.sharedMaterial = unity;
-                }
+                    Owner.MeshRenderer.sharedMaterial =
+                        (Materials[0] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
                 else
                     Owner.MeshRenderer.sharedMaterial = nullMaterial;
             }

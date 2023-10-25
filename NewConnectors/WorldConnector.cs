@@ -12,7 +12,7 @@ public class WorldConnector : IWorldConnector
     {
         //Owner only gets used during Destroy so it doesn't matter if we set it here
         Owner = owner;
-        Thundagun.CurrentPackets.Add(new InitializeWorldConnector(this));
+        Thundagun.QueuePacket(new InitializeWorldConnector(this));
     }
     public static void SetLayerRecursively(Transform transform, int layer)
     {
@@ -20,8 +20,8 @@ public class WorldConnector : IWorldConnector
         for (var index = 0; index < transform.childCount; ++index)
             SetLayerRecursively(transform.GetChild(index), layer);
     }
-    public void ChangeFocus(World.WorldFocus focus) => Thundagun.CurrentPackets.Add(new ChangeFocusWorldConnector(this, focus));
-    public void Destroy() => Thundagun.CurrentPackets.Add(new DestroyWorldConnector(this));
+    public void ChangeFocus(World.WorldFocus focus) => Thundagun.QueuePacket(new ChangeFocusWorldConnector(this, focus));
+    public void Destroy() => Thundagun.QueuePacket(new DestroyWorldConnector(this));
 }
 
 public class InitializeWorldConnector : UpdatePacket<WorldConnector>

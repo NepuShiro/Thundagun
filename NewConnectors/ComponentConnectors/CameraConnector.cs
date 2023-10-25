@@ -22,7 +22,7 @@ public class CameraConnector : ComponentConnectorSingle<Camera>
 
     public override IUpdatePacket InitializePacket() => new InitializeCameraConnector(this);
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesCameraConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesCameraConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

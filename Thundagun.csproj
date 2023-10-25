@@ -53,6 +53,18 @@
     <Reference Include="BepuUtilities">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/BepuUtilities.dll</HintPath>
     </Reference>
+    <Reference Include="SharpDX">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/SharpDX.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpDX.DXGI">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/SharpDX.DXGI.dll</HintPath>
+    </Reference>
+    <Reference Include="SharpDX.Direct3D11">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/SharpDX.Direct3D11.dll</HintPath>
+    </Reference>
+    <Reference Include="NativeGraphics.NET">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/NativeGraphics.NET.dll</HintPath>
+    </Reference>
     <Reference Include="HarmonyLib">
       <HintPath Condition="Exists('$(ResonitePath)0Harmony.dll')">$(ResonitePath)0Harmony.dll</HintPath>
       <HintPath Condition="Exists('$(ResonitePath)rml_libs/0Harmony.dll')">$(ResonitePath)rml_libs/0Harmony.dll</HintPath>

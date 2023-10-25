@@ -13,7 +13,7 @@ public class ParticleSystemConnector :
 {
     public override IUpdatePacket InitializePacket() => new InitializeParticleSystemConnector(this, Owner);
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesParticleSystemConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesParticleSystemConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

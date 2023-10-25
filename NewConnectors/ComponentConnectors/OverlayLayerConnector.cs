@@ -10,7 +10,7 @@ public class OverlayLayerConnector : ComponentConnectorSingle<OverlayLayer>
 
     public override IUpdatePacket InitializePacket() => new InitializeOverlayLayerConnector(this, Owner);
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesOverlayLayerConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesOverlayLayerConnector(this));
     
     public override void Destroy(bool destroyingWorld)
     {

@@ -2,7 +2,6 @@ using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
-using TextureConnector = Thundagun.NewConnectors.AssetConnectors.TextureConnector;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -12,7 +11,7 @@ public class BlitToDisplayConnector : ComponentConnectorSingle<BlitToDisplay>
 
     public override IUpdatePacket InitializePacket() => new InitializeBlitToDisplayConnector(this, Owner);
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesBlitToDisplayConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesBlitToDisplayConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

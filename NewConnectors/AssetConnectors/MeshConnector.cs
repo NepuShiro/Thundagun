@@ -21,13 +21,50 @@ public class MeshConnector : AssetConnector, IMeshConnector
         BoundingBox bounds,
         AssetIntegrated onLoaded)
     {
-        meshx.GenerateUnityMeshData(ref _meshGenData, ref uploadHint, Engine.SystemInfo);
-        _uploadHint = uploadHint;
-        _bounds = bounds;
-        _onLoaded = onLoaded;
-        UnityAssetIntegrator.EnqueueProcessing(Upload, Asset.HighPriorityIntegration);
+        var data = new UnityMeshData();
+        meshx.GenerateUnityMeshData(ref data, ref uploadHint, Engine.SystemInfo);
+        //meshx.GenerateUnityMeshData(ref _meshGenData, ref uploadHint, Engine.SystemInfo);
+        //_uploadHint = uploadHint;
+        //_bounds = bounds;
+        //_onLoaded = onLoaded;
+        UnityAssetIntegrator.EnqueueProcessing(() => Upload2(data, uploadHint, bounds, onLoaded), Asset.HighPriorityIntegration);
     }
 
+    private void Upload2(UnityMeshData data, MeshUploadHint hint, BoundingBox bounds, AssetIntegrated onLoaded)
+    {
+        if (data == null)
+            return;
+        if (_mesh != null && !_mesh.isReadable)
+        {
+            if (_mesh)
+                UnityEngine.Object.Destroy(_mesh);
+            _mesh = null;
+        }
+
+        var environmentInstanceChanged = false;
+        if (_mesh == null)
+        {
+            _mesh = new UnityEngine.Mesh();
+            environmentInstanceChanged = true;
+            if (hint[MeshUploadHint.Flag.Dynamic])
+                _mesh.MarkDynamic();
+        }
+        
+        data.Assign(_mesh, hint);
+
+        _mesh.bounds = bounds.ToUnity();
+        _mesh.UploadMeshData(!hint[MeshUploadHint.Flag.Readable]);
+        if (hint[MeshUploadHint.Flag.Dynamic])
+        {
+            _meshGenData = data;
+            _uploadHint = hint;
+            _bounds = bounds;
+            _onLoaded = onLoaded;
+        }
+        onLoaded(environmentInstanceChanged);
+        Engine.MeshUpdated();
+    }
+    
     private void Upload()
     {
         if (_meshGenData == null)

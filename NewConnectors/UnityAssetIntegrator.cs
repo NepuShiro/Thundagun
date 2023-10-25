@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
+using NativeGraphics.NET;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.Scripting;
@@ -17,18 +18,45 @@ namespace Thundagun.NewConnectors;
 public class UnityAssetIntegrator : IAssetManagerConnector
 {
     private static UnityAssetIntegrator _instance;
+    internal static SharpDX.Direct3D11.Device _dx11device;
     private SpinQueue<QueueAction> _highpriorityQueue = new();
     private SpinQueue<QueueAction> _processingQueue = new();
+    private SpinQueue<QueueAction> renderThreadQueue = new();
     private SpinQueue<Action> _taskQueue = new();
     private Stopwatch _stopwatch = new();
     private double _maxMilliseconds;
-
+    private Action<int> renderThreadCallback;
+    private IntPtr renderThreadPointer;
     public Engine Engine => AssetManager.Engine;
 
     public AssetManager AssetManager { get; private set; }
+    public GraphicsDeviceType GraphicsDeviceType { get; private set; }
     public static bool IsEditor { get; private set; }
 
     public static bool IsDebugBuild { get; private set; }
+    
+    public bool RenderThreadProcessingEnabled { get; private set; }
+    
+    [MonoPInvokeCallback(typeof (RenderEventDelegate))]
+    private static void RenderThreadCallback()
+    {
+        try
+        {
+            if (!IsDebugBuild)
+                GarbageCollector.GCMode = GarbageCollector.Mode.Disabled;
+            _instance.ProcessQueue2(MathX.Max(_instance._maxMilliseconds, 2.0), true);
+        }
+        catch (Exception ex)
+        {
+            UniLog.Error("Exception in render thread queue processing:\n" + ex);
+        }
+        finally
+        {
+            if (!IsDebugBuild)
+                GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+        }
+    }
+    
 
     public async Task Initialize(AssetManager owner)
     {
@@ -39,9 +67,43 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         unityAssetIntegrator.AssetManager = owner;
         await InitializationTasks.Enqueue(delegate
         {
+            GraphicsDeviceType = SystemInfo.graphicsDeviceType;
             IsEditor = Application.isEditor;
             IsDebugBuild = UnityEngine.Debug.isDebugBuild;
+            UniLog.Log($"Graphics Device Type: {GraphicsDeviceType}");
+            switch (GraphicsDeviceType)
+            {
+                case GraphicsDeviceType.Direct3D11:
+                {
+                    var texture2D = new UnityEngine.Texture2D(4, 4);
+                    _dx11device = new SharpDX.Direct3D11.Texture2D(texture2D.GetNativeTexturePtr()).Device;
+                    if (texture2D) UnityEngine.Object.Destroy(texture2D);
+                    RenderThreadProcessingEnabled = true;
+                    break;
+                }
+                case GraphicsDeviceType.OpenGLES2:
+                case GraphicsDeviceType.OpenGLES3:
+                case GraphicsDeviceType.OpenGLCore:
+                    RenderThreadProcessingEnabled = true;
+                    break;
+            }
+            if (RenderThreadProcessingEnabled)
+            {
+                Callback.SetUpdateCallback(RenderThreadCallback);
+                renderThreadPointer = Callback.GetRenderEventFunc();
+            }
         });
+    }
+    public void EnqueueRenderThreadProcessing(IEnumerator coroutine)
+    {
+        if (!RenderThreadProcessingEnabled) throw new NotSupportedException("Render Thread Processing is not enabled");
+        renderThreadQueue.Enqueue(new QueueAction(coroutine));
+    }
+
+    public void EnqueueRenderThreadProcessing(Action action)
+    {
+        if (!RenderThreadProcessingEnabled) throw new NotSupportedException("Render Thread Processing is not enabled");
+        renderThreadQueue.Enqueue(new QueueAction(action));
     }
     public void EnqueueProcessing(IEnumerator coroutine, bool highPriority)
     {
@@ -58,7 +120,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 
     public int ProcessQueue(double maxMilliseconds)
     {
-        Thundagun.CurrentPackets.Add(new ProcessQueueUnityAssetIntegrator(this, maxMilliseconds));
+        Thundagun.QueuePacket(new ProcessQueueUnityAssetIntegrator(this, maxMilliseconds));
         return 0;
     }
 
@@ -76,66 +138,78 @@ public class UnityAssetIntegrator : IAssetManagerConnector
                 UniLog.Error("Exception running AssetIntegrator task:\n" + ex);
             }
         }
-        return ProcessQueue2(maxMilliseconds);
+        if (RenderThreadProcessingEnabled && renderThreadQueue.Count > 0)
+        {
+            GL.IssuePluginEvent(renderThreadPointer, 0);
+        }
+        return ProcessQueue2(maxMilliseconds, false);
     }
 
-    private int ProcessQueue2(double maxMilliseconds)
+    private int ProcessQueue2(double maxMilliseconds, bool renderThread)
     {
-        //Thundagun.Msg("Starting second process queue");
-        //Thundagun.Msg($"Max millis: {maxMilliseconds}");
-        //Thundagun.Msg($"Num queued: {_highpriorityQueue.Count + _processingQueue.Count}");
-        var num1 = 0;
+        var num = 0;
         _stopwatch.Restart();
-        var hasHighPriority = false;
+        var hasPriorityQueue = false;
+        var hasQueue = false;
         try
         {
-            double elapsedMilliseconds1;
+            double elapsedMilliseconds2;
             double num2;
             do
             {
-                var elapsedMilliseconds2 = _stopwatch.GetElapsedMilliseconds();
+                var elapsedMilliseconds = _stopwatch.GetElapsedMilliseconds();
+                hasPriorityQueue = false;
+                hasQueue = false;
                 QueueAction val;
-                hasHighPriority = false;
-                var hasNormalPriority = false;
-                if (_highpriorityQueue.TryPeek(out val)) hasHighPriority = true;
-                else if (_processingQueue.TryPeek(out val)) hasNormalPriority = true;
-                
-                if (hasHighPriority | hasNormalPriority)
+                if (!renderThread)
                 {
-                    
-                    num1++;
-                    var actionDone = false;
-                    if (val.Action != null)
+                    if (_highpriorityQueue.TryPeek(out val)) hasPriorityQueue = true;
+                    else if (_processingQueue.TryPeek(out val)) hasQueue = true;
+                }
+                else hasQueue = renderThreadQueue.TryPeek(out val);
+
+                if (!(hasPriorityQueue || hasQueue)) break;
+                
+                num++;
+                
+                var actionDone = false;
+                if (val.Action != null)
+                {
+                    val.Action();
+                    actionDone = true;
+                }
+                else if (!val.Coroutine.MoveNext()) actionDone = true;
+
+                if (actionDone)
+                {
+                    if (!renderThread)
                     {
-                        val.Action();
-                        actionDone = true;
-                    }
-                    else if (!val.Coroutine.MoveNext()) actionDone = true;
-                    if (actionDone)
-                    {
-                        if (hasHighPriority) _highpriorityQueue.TryDequeue(out _);
+                        if (hasPriorityQueue) _highpriorityQueue.TryDequeue(out _);
                         else _processingQueue.TryDequeue(out _);
                     }
-                    
-                    elapsedMilliseconds1 = _stopwatch.GetElapsedMilliseconds();
-                    num2 = elapsedMilliseconds1 - elapsedMilliseconds2;
+                    else renderThreadQueue.TryDequeue(out _);
                 }
-                else break;
-            } 
-            while (elapsedMilliseconds1 + num2 < maxMilliseconds);
+                elapsedMilliseconds2 = _stopwatch.GetElapsedMilliseconds();
+                num2 = elapsedMilliseconds2 - elapsedMilliseconds;
+            }
+            while (elapsedMilliseconds2 + num2 < maxMilliseconds);
         }
         catch (Exception ex)
         {
             UniLog.Warning("Exception integrating asset: " + ex);
-            if (hasHighPriority) _highpriorityQueue.TryDequeue(out _);
-            else _processingQueue.TryDequeue(out _);
+            if (!renderThread)
+            {
+                if (hasPriorityQueue) _highpriorityQueue.TryDequeue(out _);
+                else _processingQueue.TryDequeue(out _);
+            }
+            else
+            {
+                UniLog.Error("DeviceRemovedReason: " + _dx11device.DeviceRemovedReason.Code.ToString("X8"));
+                renderThreadQueue.TryDequeue(out _);
+            }
         }
-
         _maxMilliseconds = maxMilliseconds - _stopwatch.GetElapsedMilliseconds();
-        
-        //Thundagun.Msg($"Num processed: {num1}");
-        
-        return num1;
+        return num;
     }
 
     private struct QueueAction

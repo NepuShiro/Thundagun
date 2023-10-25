@@ -25,10 +25,11 @@ public class Thundagun : ResoniteMod
     public override string Author => "Fro Zen";
     public override string Version => "1.0.0";
 
-    public static List<IUpdatePacket> CurrentPackets = new();
+    public static readonly List<IUpdatePacket> CurrentPackets = new();
 
     public static Task CurrentTask;
-    
+    public static void QueuePacket(IUpdatePacket packet) => CurrentPackets.Add(packet);
+
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
@@ -316,7 +317,7 @@ public static class AssetInitializerPatch
     {
         if (!Connectors.TryGetValue(asset.GetType(), out var t)) return true;
         __result = t;
-        Thundagun.Msg($"Patched {asset.GetType().Name}");
+        //Thundagun.Msg($"Patched {asset.GetType().Name}");
         return false;
     }
 }
@@ -344,7 +345,7 @@ public static class WorkerInitializerPatch
         if (array.Length == 1)
         {
             __result.connectorType = array[0];
-            Thundagun.Msg($"Patched " + workerType.Name);
+            //Thundagun.Msg($"Patched " + workerType.Name);
         }
     }
 }

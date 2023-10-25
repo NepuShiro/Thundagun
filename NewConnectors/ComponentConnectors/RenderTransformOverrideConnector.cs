@@ -26,7 +26,7 @@ public class RenderTransformOverrideConnector : ComponentConnectorSingle<RenderT
         Handler = HandleRenderingContextSwitch;
     }
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesRenderTransformOverrideConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesRenderTransformOverrideConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

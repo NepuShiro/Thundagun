@@ -40,7 +40,7 @@ public class MaterialConnector : MaterialConnectorBase, IMaterialConnector
 
     protected override bool BeginUpload(ref bool instanceChanged)
     {
-        var shader = targetShader?.GetUnity();
+        var shader = (targetShader?.Connector as ShaderConnector)?.UnityShader;
         if (shader == null)
         {
             if (_unityMaterial != null)

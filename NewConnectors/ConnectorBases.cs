@@ -17,8 +17,8 @@ public abstract class ComponentConnector<TD, TC> : Connector<TD>
 
     public virtual IUpdatePacket DestroyPacket(bool destroyingWorld) => new DestroyComponentConnector<TD, TC>(this, Owner, destroyingWorld);
 
-    public override void Initialize() => Thundagun.CurrentPackets.Add(InitializePacket());
-    public override void Destroy(bool destroyingWorld) => Thundagun.CurrentPackets.Add(DestroyPacket(destroyingWorld));
+    public override void Initialize() => Thundagun.QueuePacket(InitializePacket());
+    public override void Destroy(bool destroyingWorld) => Thundagun.QueuePacket(DestroyPacket(destroyingWorld));
 
     public virtual void DestroyMethod(bool destroyingWorld)
     {

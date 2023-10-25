@@ -14,7 +14,7 @@ public class LightConnector : ComponentConnectorSingle<Light>
 
     public override IUpdatePacket InitializePacket() => new InitializeLightConnector(this, Owner);
 
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesLightConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesLightConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
     {

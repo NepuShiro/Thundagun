@@ -5,7 +5,7 @@ namespace Thundagun.NewConnectors.ComponentConnectors;
 
 public class HiddenLayerConnector : ComponentConnectorSingle<HiddenLayer>
 {
-    public override void ApplyChanges() => Thundagun.CurrentPackets.Add(new ApplyChangesHiddenLayerConnector(this));
+    public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesHiddenLayerConnector(this));
     public override void Destroy(bool destroyingWorld)
     {
         if (!destroyingWorld)

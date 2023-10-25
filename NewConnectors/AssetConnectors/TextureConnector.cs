@@ -1,9 +1,16 @@
 using System;
+using System.Collections;
 using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
+using NativeGraphics.NET;
+using ResoniteModLoader;
+using SharpDX.Direct3D;
+using SharpDX.Direct3D11;
+using SharpDX.DXGI;
+using UnityEngine.Rendering;
 
 namespace Thundagun.NewConnectors.AssetConnectors;
 
@@ -16,12 +23,18 @@ public class TextureConnector :
     private UnityEngine.Texture2D _unityTexture2D;
     private UnityEngine.Cubemap _unityCubemap;
     public const int TIMESLICE_RESOLUTION = 65536;
+
+    private SharpDX.Direct3D11.Texture2D _dx11Tex;
+    private ShaderResourceView _dx11Resource;
+    private int _totalMips;
+
     private TextureFilterMode _filterMode;
     private int _anisoLevel;
     private FrooxEngine.TextureWrapMode _wrapU;
     private FrooxEngine.TextureWrapMode _wrapV;
     private float _mipmapBias;
     private AssetIntegrated _onPropertiesSet;
+    private int _lastLoadedMip;
     private bool _texturePropertiesDirty;
 
     public UnityEngine.Texture2D UnityTexture2D => _unityTexture2D;
@@ -69,34 +82,73 @@ public class TextureConnector :
         });
     }
 
-    private void SetTextureFormat(TextureFormatData format) => UnityAssetIntegrator.EnqueueProcessing(() => SetTextureFormatUnity(format), true);
+    private void SetTextureFormat(TextureFormatData format)
+    {
+        switch (UnityAssetIntegrator.GraphicsDeviceType)
+        {
+            case GraphicsDeviceType.Direct3D11:
+                UnityAssetIntegrator.EnqueueRenderThreadProcessing(SetTextureFormatDX11Native(format));
+                break;
+            /*
+            case GraphicsDeviceType.OpenGLES2:
+            case GraphicsDeviceType.OpenGLES3:
+            case GraphicsDeviceType.OpenGLCore:
+                UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.SetTextureFormatOpenGLNative(format));
+                return;
+                */
+        }
+    }
 
     public void SetTexture2DData(Bitmap2D data, int startMipLevel, TextureUploadHint hint, AssetIntegrated onSet) =>
         SetTextureData(new TextureUploadData
         {
-            //Bitmap2D = data,
+            Bitmap2D = data,
             StartMip = startMipLevel,
             Hint = hint,
             OnDone = onSet,
-            Format = data.Format,
-            RawData = data.RawData,
         });
 
-    public void SetCubemapData(BitmapCube data, int startMipLevel, AssetIntegrated onSet) => 
+    public void SetCubemapData(BitmapCube data, int startMipLevel, AssetIntegrated onSet) =>
         SetTextureData(new TextureUploadData
         {
-            //BitmapCube = data,
+            BitmapCube = data,
             StartMip = startMipLevel,
             OnDone = onSet,
-            Format = data.Format,
-            RawData = data.RawData,
         });
 
-    private void SetTextureData(TextureUploadData data) =>
-        UnityAssetIntegrator.EnqueueProcessing(() => UploadTextureDataUnity(data),
-            Asset.HighPriorityIntegration);
+    private void SetTextureData(TextureUploadData data)
+    {
+        switch (UnityAssetIntegrator.GraphicsDeviceType)
+        {
+            case GraphicsDeviceType.Direct3D11:
+                data.Format.ToDX11(out var convertToFormat, data.Bitmap.Profile, Engine.SystemInfo);
+                if (convertToFormat != data.Format)
+                {
+                    UniLog.Warning(
+                        $"Converting texture format from {data.Format} to {convertToFormat}. Texture: {data.Bitmap}. Asset: {Asset}");
+                    data.ConvertTo(convertToFormat);
+                }
 
-    //TODO: separate this into a packet, this is technically thread safe but it can also change mid-frame
+                UnityAssetIntegrator.EnqueueRenderThreadProcessing(UploadTextureDataDX11Native(data));
+                return;
+            /*
+            case GraphicsDeviceType.OpenGLES2:
+            case GraphicsDeviceType.OpenGLES3:
+            case GraphicsDeviceType.OpenGLCore:
+            {
+                Helper.OpenGL_TextureFormat openGL_TextureFormat = data.Format.ToOpenGL(data.Bitmap.Profile, base.Engine.SystemInfo);
+                if (openGL_TextureFormat.sourceFormat != data.Format)
+                {
+                    UniLog.Warning($"Converting texture format from {data.Format} to {openGL_TextureFormat}. Texture: {data.Bitmap}. Asset: {Asset}");
+                    data.ConvertTo(openGL_TextureFormat.sourceFormat);
+                }
+                base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(UploadTextureDataOpenGLNative(data));
+                return;
+            }
+            */
+        }
+    }
+
     public void SetTexture2DProperties(
         TextureFilterMode filterMode,
         int anisoLevel,
@@ -189,48 +241,192 @@ public class TextureConnector :
         onPropertiesSet(false);
     }
 
-    private void SetTextureFormatUnity(TextureFormatData format)
+    private void GenerateUnityTextureFromDX11(TextureFormatData format)
     {
-        var unity = format.Format.ToUnity();
-        var environmentInstanceChanged = false;
-        if (_unityTexture2D == null ||
-            _unityTexture2D.width != format.Width || _unityTexture2D.height != format.Height ||
-            _unityTexture2D.format != unity || _unityTexture2D.mipmapCount > 1 != format.Mips > 1)
+        switch (format.Type)
         {
-            Destroy();
-            _unityTexture2D = new UnityEngine.Texture2D(format.Width, format.Height, unity, format.Mips > 1);
-            environmentInstanceChanged = true;
+            case TextureType.Texture2D:
+                _unityTexture2D = UnityEngine.Texture2D.CreateExternalTexture(format.Width, format.Height,
+                    format.Format.ToUnity(), format.Mips > 1, linear: false, _dx11Resource.NativePointer);
+                break;
+            case TextureType.Cubemap:
+                _unityCubemap = UnityEngine.Cubemap.CreateExternalTexture(format.Width, format.Format.ToUnity(),
+                    format.Mips > 1, _dx11Resource.NativePointer);
+                break;
         }
 
         AssignTextureProperties();
-        format.OnDone(environmentInstanceChanged);
+        format.OnDone(environmentInstanceChanged: true);
     }
 
-    private void UploadTextureDataUnity(TextureUploadData data)
+    private IEnumerator SetTextureFormatDX11Native(TextureFormatData format)
     {
-        /*
-        var size = new int2(_unityTexture2D.width, _unityTexture2D.height);
-        //var num = 0;
-        for (var index = 0; index < data.StartMip; ++index)
+        var format2 = format.Format.ToDX11(out _, format.Profile, Engine.SystemInfo);
+        var description = _dx11Tex?.Description ?? default(Texture2DDescription);
+        var flag = false;
+        if (_dx11Tex == null
+            || description.Width != format.Width
+            || description.Height != format.Height
+            || description.ArraySize != format.ArraySize
+            || description.Format != format2
+            || description.MipLevels != format.Mips)
         {
-            var alignedSize = Bitmap2DBase.AlignSize(in size, data.Format);
-            //num += alignedSize.x * alignedSize.y;
-            size /= 2;
-            size = MathX.Max(size, 1);
-        }
-        //var bytes = (int) MathX.BitsToBytes(num * data.Format.GetBitsPerPixel());
-        */
-        var rawTextureData = _unityTexture2D.GetRawTextureData<byte>();
-        for (var index = 0; index < data.RawData.Length; index++)
-            rawTextureData[index/* + bytes*/] = data.RawData[index];
-        if (data.StartMip == 0)
-        {
-            _unityTexture2D?.Apply(false, !data.Hint.readable);
-            //_unityCubemap?.Apply(false, !data.Hint.readable);
-            Engine.TextureUpdated();
+            if (_dx11Tex != null)
+            {
+                var oldUnityTex = _unityTexture2D;
+                var oldUnityCube = _unityCubemap;
+                var oldDX11tex = _dx11Tex;
+                var oldDX11res = _dx11Resource;
+                var oldOnDone = format.OnDone;
+                format.OnDone = delegate
+                {
+                    if (oldUnityTex) UnityEngine.Object.Destroy(oldUnityTex);
+                    if (oldUnityCube) UnityEngine.Object.Destroy(oldUnityCube);
+                    oldDX11res?.Dispose();
+                    oldDX11tex?.Dispose();
+                    oldOnDone(environmentInstanceChanged: true);
+                };
+            }
+
+            description.Width = format.Width;
+            description.Height = format.Height;
+            description.MipLevels = format.Mips;
+            description.ArraySize = format.ArraySize;
+            description.Format = format2;
+            description.SampleDescription.Count = 1;
+            description.Usage = ResourceUsage.Default;
+            description.BindFlags = BindFlags.ShaderResource;
+            description.CpuAccessFlags = CpuAccessFlags.None;
+            description.OptionFlags = format.Type == TextureType.Texture2D
+                ? ResourceOptionFlags.ResourceClamp
+                : ResourceOptionFlags.TextureCube | ResourceOptionFlags.ResourceClamp;
+            var description2 = default(ShaderResourceViewDescription);
+            description2.Format = description.Format;
+            description2.Dimension = ((format.Type == TextureType.Texture2D)
+                ? ShaderResourceViewDimension.Texture2D
+                : ShaderResourceViewDimension.TextureCube);
+            switch (format.Type)
+            {
+                case TextureType.Texture2D:
+                    description2.Texture2D.MipLevels = format.Mips;
+                    description2.Texture2D.MostDetailedMip = 0;
+                    break;
+                case TextureType.Cubemap:
+                    description2.TextureCube.MipLevels = format.Mips;
+                    description2.TextureCube.MostDetailedMip = 0;
+                    break;
+            }
+
+            try
+            {
+                _dx11Tex = new SharpDX.Direct3D11.Texture2D(UnityAssetIntegrator._dx11device, description);
+                _dx11Resource = new ShaderResourceView(UnityAssetIntegrator._dx11device, _dx11Tex, description2);
+                _totalMips = format.Mips;
+            }
+            catch (Exception ex)
+            {
+                UniLog.Error(
+                    $"Exception creating texture: Width: {description.Width}, Height: {description.Height}, Mips: {description.MipLevels}, format: {format2}.");
+                throw ex;
+            }
+
+            _lastLoadedMip = format.Mips;
+            flag = true;
         }
 
-        data.OnDone(false);
+        if (flag)
+        {
+            UnityAssetIntegrator.EnqueueProcessing(delegate { GenerateUnityTextureFromDX11(format); },
+                highPriority: true);
+        }
+        else if (_texturePropertiesDirty)
+        {
+            UnityAssetIntegrator.EnqueueProcessing(delegate
+            {
+                AssignTextureProperties();
+                format.OnDone(environmentInstanceChanged: false);
+            }, highPriority: true);
+        }
+        else
+        {
+            format.OnDone(environmentInstanceChanged: false);
+        }
+
+        yield break;
+    }
+
+    private IEnumerator UploadTextureDataDX11Native(TextureUploadData data)
+    {
+        var elements = data.ElementCount;
+        var hint = data.Hint;
+        var bitmap = data.Bitmap;
+        var faceSize = data.FaceSize;
+        var format = data.Format;
+        var totalMipMaps = _totalMips;
+        var width = hint.region?.width ?? faceSize.x;
+        var height = hint.region?.height ?? faceSize.y;
+        var startX = hint.region?.x ?? 0;
+        var startY = hint.region?.y ?? 0;
+        var blockSize = format.BlockSize();
+        var bitsPerPixel = format.GetBitsPerPixel();
+        if (width > 0 || height > 0)
+        {
+            for (var mip = 0; mip < bitmap.MipMapLevels; mip++)
+            {
+                for (var face = 0; face < elements; face++)
+                {
+                    var levelSize = data.MipMapSize(mip);
+                    var targetMip = data.StartMip + mip;
+                    width = MathX.Min(width, levelSize.x - startX);
+                    height = MathX.Min(height, levelSize.y - startY);
+                    var mipSize = Bitmap2DBase.AlignSize(in levelSize, data.Format);
+                    var size2 = new int2(width, height);
+                    size2 = Bitmap2DBase.AlignSize(in size2, data.Format);
+                    var rowGranularity3 = 65536 / width;
+                    rowGranularity3 -= rowGranularity3 % 4;
+                    rowGranularity3 = MathX.Max(4, rowGranularity3);
+                    var row = 0;
+                    var rowPitch = (int) (MathX.BitsToBytes(mipSize.x * bitsPerPixel) * blockSize.y);
+                    while (row < height)
+                    {
+                        if (row > 0) yield return null;
+
+                        ResourceRegion? resourceRegion = new ResourceRegion(startX, startY + row, 0, startX + size2.x,
+                            MathX.Min(startY + row + rowGranularity3, startY + size2.y), 1);
+                        if (resourceRegion.Value.Left == 0 && resourceRegion.Value.Top == 0 &&
+                            resourceRegion.Value.Right == mipSize.x && resourceRegion.Value.Bottom == mipSize.y)
+                        {
+                            resourceRegion = null;
+                        }
+
+                        var num = startY + row;
+                        if (data.Bitmap2D != null)
+                        {
+                            num = levelSize.y - num - 1;
+                        }
+
+                        var num2 = (int) MathX.BitsToBytes(data.PixelStart(startX, num, mip, face) * bitsPerPixel);
+                        UnityAssetIntegrator._dx11device.ImmediateContext.UpdateSubresource(ref bitmap.RawData[num2],
+                            _dx11Tex, targetMip + face * totalMipMaps, rowPitch, 0, resourceRegion);
+                        row += rowGranularity3;
+                        Engine.TextureSliceUpdated();
+                    }
+                }
+
+                width /= 2;
+                height /= 2;
+                startX /= 2;
+                startY /= 2;
+                width = MathX.Max(width, 1);
+                height = MathX.Max(height, 1);
+            }
+
+            _lastLoadedMip = MathX.Min(_lastLoadedMip, data.StartMip);
+            _dx11Tex.Device.ImmediateContext.SetMinimumLod(_dx11Tex, _lastLoadedMip);
+        }
+
+        Engine.TextureUpdated();
+        data.OnDone(environmentInstanceChanged: false);
     }
 
     private enum TextureType
@@ -265,53 +461,42 @@ public class TextureConnector :
 
     private class TextureUploadData
     {
-        //public Bitmap2D Bitmap2D;
-        //public BitmapCube BitmapCube;
+        public Bitmap2D Bitmap2D;
+
+        public BitmapCube BitmapCube;
+
         public int StartMip;
+
         public TextureUploadHint Hint;
+
         public AssetIntegrated OnDone;
-        public Elements.Assets.TextureFormat Format;
-        public byte[] RawData;
 
-        //public Bitmap Bitmap => (Bitmap) Bitmap2D ?? BitmapCube;
+        public Bitmap Bitmap => (Bitmap) Bitmap2D ?? BitmapCube;
 
-        //public Elements.Assets.TextureFormat Format => Bitmap.Format;
+        public Elements.Assets.TextureFormat Format => Bitmap.Format;
 
-        /*
-        public int2 FaceSize
-        {
-            get
-            {
-                if (Bitmap2D != null) return Bitmap2D.Size;
-                return BitmapCube?.Size ?? int2.Zero;
-            }
-        }
-
-        public int2 MipMapSize(int mip) => 
-            Bitmap2D?.MipMapSize(mip) ?? 
-            (BitmapCube?.MipMapSize(mip) ?? int2.Zero);
+        public int2 FaceSize => Bitmap2D?.Size ?? BitmapCube?.Size ?? int2.Zero;
 
         public int ElementCount
         {
             get
             {
-                if (Bitmap2D != null)
-                    return 1;
-                if (BitmapCube != null)
-                    return 6;
+                if (Bitmap2D != null) return 1;
+                if (BitmapCube != null) return 6;
                 throw new Exception("Invalid state, must have either Bitmap2D or BitmapCUBE");
             }
         }
 
-        public int PixelStart(int x, int y, int mip, int face) => 
-            Bitmap2D?.PixelStart(x, y, mip) ??
-            BitmapCube.PixelStart(x, y, (BitmapCube.Face) face, mip);
+        public int2 MipMapSize(int mip) => Bitmap2D?.MipMapSize(mip) ?? BitmapCube?.MipMapSize(mip) ?? int2.Zero;
+
+        public int PixelStart(int x, int y, int mip, int face) => Bitmap2D?.PixelStart(x, y, mip) ??
+                                                                  BitmapCube.PixelStart(x, y, (BitmapCube.Face) face,
+                                                                      mip);
 
         public void ConvertTo(Elements.Assets.TextureFormat format)
         {
             Bitmap2D = Bitmap2D?.ConvertTo(format);
             BitmapCube = BitmapCube?.ConvertTo(format);
         }
-        */
     }
 }
