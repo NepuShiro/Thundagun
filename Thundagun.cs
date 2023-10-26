@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
@@ -28,11 +29,20 @@ public class Thundagun : ResoniteMod
     public static readonly List<IUpdatePacket> CurrentPackets = new();
 
     public static Task CurrentTask;
+
+    //public static Thread CurrentThread;
     public static void QueuePacket(IUpdatePacket packet) => CurrentPackets.Add(packet);
+    
+    internal static ModConfiguration Config;
+    
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> OutputDebug =
+        new("OutputDebug", "Output Debug", () => true);
 
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
+        Config = GetConfiguration();
         
         PatchEngineTypes();
         PatchComponentConnectors(harmony);
@@ -139,12 +149,16 @@ public static class FrooxEngineRunnerPatch
             ____externalUpdate.Stop();
             try
             {
+                var totalTimer = new Stopwatch();
+                totalTimer.Start();
                 //if we have a current task, wait for it to finish
                 if (Thundagun.CurrentTask is not null) Thundagun.CurrentTask.Wait();
-                
+                //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
+
+                //var waitTime = totalTimer.Elapsed.TotalSeconds;
+
                 //rethrow errors if they occured in the update loop
-                if (Thundagun.CurrentTask?.Exception is not null)
-                    throw Thundagun.CurrentTask.Exception;
+                if (Thundagun.CurrentTask?.Exception is not null) throw Thundagun.CurrentTask.Exception;
 
                 //head output and framerate boilerplate
                 var focusedWorld = ____frooxEngine.WorldManager.FocusedWorld;
@@ -158,18 +172,27 @@ public static class FrooxEngineRunnerPatch
                 //finally the interesting shit
                 //first, we copy the list of current update packets into a local variable
                 //then, we clear the original list and start the async update task
+                
+                //var boilerplateTime = totalTimer.Elapsed.TotalSeconds;
+
                 var updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
                 Thundagun.CurrentPackets.Clear();
                 var engine = ____frooxEngine;
+                
+                if (UnityAssetIntegrator._instance is not null)
+                {
+                    //TODO: do we need to limit the ms time?
+                    Engine.Current.AssetsUpdated(UnityAssetIntegrator._instance.ProcessQueue1(1000));
+                }
+                
+                //var assetTime = totalTimer.Elapsed.TotalSeconds;
+                
                 Thundagun.CurrentTask = Task.Run(() =>
                 {
                     engine.RunUpdateLoop();
                 });
 
-                if (UnityAssetIntegrator._instance is not null)
-                {
-                    Engine.Current.AssetsUpdated(UnityAssetIntegrator._instance.ProcessQueue1(1000));
-                }
+                //var loopTime = totalTimer.Elapsed.TotalSeconds;
 
                 foreach (var update in updates)
                 {
@@ -182,12 +205,9 @@ public static class FrooxEngineRunnerPatch
                         Thundagun.Msg(e);
                     }
                 }
-
-                /*
-                var count = updates.Count;
-                Thundagun.Msg($"Processed {count} packets");
-                */
                 
+                //var updateTime = totalTimer.Elapsed.TotalSeconds;
+
                 //uhhh???
                 if (focusedWorld != lastFocused)
                 {
@@ -199,6 +219,15 @@ public static class FrooxEngineRunnerPatch
                 }
                 UpdateQualitySettings(__instance);
                 
+                //var finishTime = totalTimer.Elapsed.TotalSeconds;
+                
+                /*
+                if (Thundagun.Config.GetValue(Thundagun.OutputDebug))
+                {
+                    Thundagun.Msg($"Wait time: {waitTime} Boilerplate: {boilerplateTime} Asset Integration time: {assetTime} Loop time: {loopTime} Update time: {updateTime} Finished: {finishTime}");
+                }
+                */
+
                 //__instance.UpdateFrooxEngine();
             }
             catch (Exception ex)

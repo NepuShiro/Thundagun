@@ -85,7 +85,7 @@ namespace Thundagun.NewConnectors
         public override void Initialize()
         {
             ParentConnector = Owner.Parent?.Connector as SlotConnector;
-            Thundagun.QueuePacket(new ApplyChangesSlotConnector(this, true));
+            Thundagun.QueuePacket(new ApplyChangesSlotConnector(this, !Owner.IsRootSlot));
         }
 
         public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesSlotConnector(this));
@@ -120,7 +120,7 @@ namespace Thundagun.NewConnectors
         {
             var o = owner.Owner;
             var parent = o.Parent;
-            if ((parent?.Connector != owner.ParentConnector && parent != null) || forceReparent)
+            if ((parent != null && parent.Connector != owner.ParentConnector) || forceReparent)
             {
                 Reparent = true;
                 NewParentSlot = o.Parent.Connector as SlotConnector;
