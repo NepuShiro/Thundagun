@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using Elements.Core;
 using FrooxEngine;
 using UnityEngine;
@@ -86,7 +87,7 @@ public class ParticleSystemBehavior : ConnectorBehaviour<ParticleSystemConnector
 			if (generatesColors) _colors = _colors.EnsureSize(num2);
 			var num3 = emitter.GenerateParticles(FrooxEngineParticleSystem.SimulationSpace.Space, num2, _emissions, generatesColors ? _colors : null);
 			if (num3 == 0) continue;
-			if (world.Focus == World.WorldFocus.PrivateOverlay || world.Focus == World.WorldFocus.Overlay)
+			if (world.Focus is World.WorldFocus.PrivateOverlay or World.WorldFocus.Overlay)
 			{
 				var focusedWorld = world.Engine.WorldManager.FocusedWorld;
 				for (var i = 0; i < num3; i++)
@@ -144,15 +145,13 @@ public class ParticleSystemBehavior : ConnectorBehaviour<ParticleSystemConnector
 		_particles = _particles.EnsureSize(particleCount);
 		lastDeltaTime = Time.deltaTime;
 		var particles = pSystem.GetParticles(_particles);
-		if (particles != 0)
+		if (particles == 0) return;
+		for (var i = 0; i < particles; i += 100)
 		{
-			for (var i = 0; i < particles; i += 100)
-			{
-				var job = new ParticleJob(this, i, Math.Min(particles, i + 100));
-				ParticleSystemWorker.RegisterJob(in job);
-			}
-			lastCount = particles;
-			ParticleSystemWorker.RegisterJobData(this);
+			var job = new ParticleJob(this, i, Math.Min(particles, i + 100));
+			ParticleSystemWorker.RegisterJob(in job);
 		}
+		lastCount = particles;
+		ParticleSystemWorker.RegisterJobData(this);
 	}
 }

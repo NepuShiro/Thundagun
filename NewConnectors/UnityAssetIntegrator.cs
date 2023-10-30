@@ -42,8 +42,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
     {
         try
         {
-            if (!IsDebugBuild)
-                GarbageCollector.GCMode = GarbageCollector.Mode.Disabled;
+            //if (!IsDebugBuild) GarbageCollector.GCMode = GarbageCollector.Mode.Disabled;
             _instance.ProcessQueue2(MathX.Max(_instance._maxMilliseconds, 2.0), true);
         }
         catch (Exception ex)
@@ -52,8 +51,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         }
         finally
         {
-            if (!IsDebugBuild)
-                GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
+            //if (!IsDebugBuild) GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
         }
     }
     

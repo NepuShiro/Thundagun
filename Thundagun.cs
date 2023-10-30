@@ -11,6 +11,7 @@ using FrooxEngine;
 using HarmonyLib;
 using ResoniteModLoader;
 using UnityEngine;
+using UnityEngine.XR;
 using UnityFrooxEngineRunner;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
@@ -25,6 +26,8 @@ public class Thundagun : ResoniteMod
     public override string Name => "Thundagun";
     public override string Author => "Fro Zen";
     public override string Version => "1.0.0";
+
+    public static double Performance;
 
     public static readonly List<IUpdatePacket> CurrentPackets = new();
 
@@ -149,8 +152,9 @@ public static class FrooxEngineRunnerPatch
             ____externalUpdate.Stop();
             try
             {
-                var totalTimer = new Stopwatch();
-                totalTimer.Start();
+                UpdateFrameRate(__instance);
+                //var totalTimer = new Stopwatch();
+                //totalTimer.Start();
                 //if we have a current task, wait for it to finish
                 if (Thundagun.CurrentTask is not null) Thundagun.CurrentTask.Wait();
                 //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
@@ -164,8 +168,6 @@ public static class FrooxEngineRunnerPatch
                 var focusedWorld = ____frooxEngine.WorldManager.FocusedWorld;
                 var lastFocused = ____lastFocusedWorld;
                 UpdateHeadOutput(focusedWorld, ____frooxEngine, ____vrOutput, ____screenOutput, ____audioListener, ref ____worlds);
-                UpdateFrameRate(__instance);
-                
                 //more boilerplate
                 ____frooxEngine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
                 
@@ -247,6 +249,33 @@ public static class FrooxEngineRunnerPatch
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateFrameRate")]
     public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub");
+
+    /*
+    public static void UpdateFrameRate(SystemInfoConnector systemInfo, Stopwatch externalUpdate, ref int framerateCounter, Stopwatch framerateUpdate)
+    {
+        var fps = systemInfo?.FPS ?? 0.0f;
+        var externalUpdateTime = externalUpdate.ElapsedMilliseconds * (1f / 1000f);
+        if (!framerateUpdate.IsRunning)
+        {
+            framerateUpdate.Restart();
+        }
+        else
+        {
+            framerateCounter++;
+            var elapsedMilliseconds = framerateUpdate.ElapsedMilliseconds;
+            if (elapsedMilliseconds >= 500L)
+            {
+                if (systemInfo != null)
+                    fps = framerateCounter / (elapsedMilliseconds * (1f / 1000f));
+                framerateCounter = 0;
+                framerateUpdate.Restart();
+            }
+        }
+        //var renderTime = !XRStats.TryGetGPUTimeLastFrame(out var gpuTimeLastFrame) ? -1f : gpuTimeLastFrame * (1f / 1000f);
+        var immediateFPS = 1f / Time.unscaledDeltaTime;
+        systemInfo?.UpdateTime(fps, immediateFPS, externalUpdateTime, externalUpdateTime);
+    }
+    */
     
     private static void UpdateHeadOutput(World focusedWorld, Engine engine, HeadOutput VR, HeadOutput screen, AudioListener listener, ref List<World> worlds)
     {
@@ -397,4 +426,23 @@ public abstract class UpdatePacket<T> : IUpdatePacket
 public interface IUpdatePacket
 {
     public void Update();
+}
+
+public class PerformanceTimer
+{
+    private string Name;
+    private Stopwatch timer;
+
+    public PerformanceTimer(string name)
+    {
+        Name = name;
+        timer = new Stopwatch();
+        timer.Start();
+    }
+
+    public void End()
+    {
+        timer.Stop();
+        Thundagun.Msg($"{Name}: {timer.Elapsed.TotalSeconds}");
+    }
 }

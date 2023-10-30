@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
@@ -22,7 +23,7 @@ public class RenderConnector : IRenderConnector
         Thundagun.QueuePacket(new InitializeRenderConnector(this));
     }
 
-    public GameObject GetGameObject(Slot slot) => ((SlotConnector) slot.Connector).GeneratedGameObject;
+    public static GameObject GetGameObject(Slot slot) => ((SlotConnector) slot.Connector).GeneratedGameObject;
 
     public Task<byte[]> Render(FrooxEngine.RenderSettings renderSettings) => renderQueue.Enqueue(renderSettings);
 
@@ -41,23 +42,13 @@ public class RenderConnector : IRenderConnector
         if (renderSettings.excludeObjects != null && renderSettings.excludeObjects.Count > 0)
         {
             list2 = Pool.BorrowList<GameObject>();
-            foreach (var excludeObject in renderSettings.excludeObjects)
-            {
-                var gameObject = GetGameObject(excludeObject);
-                if (gameObject != null)
-                    list2.Add(gameObject);
-            }
+            list2.AddRange(renderSettings.excludeObjects.Select(GetGameObject).Where(gameObject => gameObject != null));
         }
 
         if (renderSettings.renderObjects != null && renderSettings.renderObjects.Count > 0)
         {
             list1 = Pool.BorrowList<GameObject>();
-            foreach (var renderObject in renderSettings.renderObjects)
-            {
-                var gameObject = GetGameObject(renderObject);
-                if (gameObject != null)
-                    list1.Add(gameObject);
-            }
+            list1.AddRange(renderSettings.renderObjects.Select(GetGameObject).Where(gameObject => gameObject != null));
         }
 
         if (list1 != null)

@@ -26,7 +26,9 @@ public class RenderQueueProcessor : MonoBehaviour
         lock (tasks)
         {
             if (tasks.Count == 0)
+            {
                 return;
+            }
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
             while (tasks.Count > 0)
@@ -41,8 +43,11 @@ public class RenderQueueProcessor : MonoBehaviour
                     renderTask.task.SetException(ex);
                 }
             }
+
             if (!renderingContext.HasValue)
+            {
                 return;
+            }
             RenderHelper.BeginRenderContext(renderingContext.Value);
         }
     }

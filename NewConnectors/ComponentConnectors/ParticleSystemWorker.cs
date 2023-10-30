@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
+using System.Linq;
 using System.Threading;
 using Elements.Core;
 using FrooxEngine;
@@ -36,11 +38,10 @@ public class ParticleSystemWorker : MonoBehaviour
 	{
 		JobsCountDebug = jobs.Count;
 		if (jobs.Count == 0)
-		{
 			return;
-		}
 		var count = jobs.Count;
 		processedJobs = 0;
+		/*
 		for (var i = 0; i < MathX.Min(jobProcessor.WorkerCount - 1, count - 1); i++)
 		{
 			jobProcessor.Enqueue(workerDelegate, WorkType.HighPriority);
@@ -50,13 +51,13 @@ public class ParticleSystemWorker : MonoBehaviour
 		{
 			Thread.Yield();
 		}
-		foreach (var jobDatum in jobData)
+		*/
+		while (processedJobs < count)
 		{
-			if (jobDatum.pSystem != null)
-			{
-				jobDatum.pSystem.SetParticles(jobDatum._particles, jobDatum.lastCount);
-			}
+			ParticleCollisionWorker();
 		}
+		foreach (var jobDatum in jobData.Where(jobDatum => jobDatum.pSystem != null))
+			jobDatum.pSystem.SetParticles(jobDatum._particles, jobDatum.lastCount);
 		jobData.Clear();
 	}
 
@@ -100,9 +101,7 @@ public class ParticleSystemWorker : MonoBehaviour
 					var particle = array[i];
 					var magnitude = particle.velocity.magnitude;
 					if (magnitude <= 1E-10f)
-					{
 						continue;
-					}
 					var a = particle.position.ToEngine();
 					var v = particle.velocity.ToEngine();
 					var num = magnitude * lastDeltaTime;
