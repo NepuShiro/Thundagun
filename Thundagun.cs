@@ -33,6 +33,8 @@ public class Thundagun : ResoniteMod
 
     public static Task CurrentTask;
 
+    //public static Task<int> AssetTask;
+
     //public static Thread CurrentThread;
     public static void QueuePacket(IUpdatePacket packet) => CurrentPackets.Add(packet);
     
@@ -115,7 +117,7 @@ public class Thundagun : ResoniteMod
         var initInfos = (ConcurrentDictionary<Type, WorkerInitInfo>) initInfosField?.GetValue(null);
             
         Msg($"Attempting to patch component types");
-            
+        
         foreach (var t in initInfos.Keys)
         {
             Msg($"Attempting " + t.Name);
@@ -135,8 +137,15 @@ public class Thundagun : ResoniteMod
 [HarmonyPatch(typeof(FrooxEngineRunner))]
 public static class FrooxEngineRunnerPatch
 {
+    public static int assets_updated = 0;
+
+
+    
+
+
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
+
     public static bool Update(FrooxEngineRunner __instance, 
         ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld, 
         ref HeadOutput ____vrOutput, ref HeadOutput ____screenOutput, ref AudioListener ____audioListener, ref List<World> ____worlds)
@@ -145,6 +154,8 @@ public static class FrooxEngineRunnerPatch
             return false;
         if (____shutdownRequest)
         {
+            //Thundagun.AssetTask.Wait();
+            Thundagun.CurrentTask.Wait();
             __instance.Shutdown(ref ____frooxEngine);
         }
         else
@@ -153,16 +164,17 @@ public static class FrooxEngineRunnerPatch
             try
             {
                 UpdateFrameRate(__instance);
-                //var totalTimer = new Stopwatch();
-                //totalTimer.Start();
+                DateTime starttime = DateTime.Now;
+
                 //if we have a current task, wait for it to finish
                 if (Thundagun.CurrentTask is not null) Thundagun.CurrentTask.Wait();
                 //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
-
-                //var waitTime = totalTimer.Elapsed.TotalSeconds;
+                
+                var waitTime = DateTime.Now;
 
                 //rethrow errors if they occured in the update loop
                 if (Thundagun.CurrentTask?.Exception is not null) throw Thundagun.CurrentTask.Exception;
+                //if (Thundagun.AssetTask?.Exception is not null) throw Thundagun.AssetTask.Exception;
 
                 //head output and framerate boilerplate
                 var focusedWorld = ____frooxEngine.WorldManager.FocusedWorld;
@@ -175,26 +187,50 @@ public static class FrooxEngineRunnerPatch
                 //first, we copy the list of current update packets into a local variable
                 //then, we clear the original list and start the async update task
                 
-                //var boilerplateTime = totalTimer.Elapsed.TotalSeconds;
+                var boilerplateTime = DateTime.Now;
 
                 var updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
                 Thundagun.CurrentPackets.Clear();
                 var engine = ____frooxEngine;
-                
+
+                //if (UnityAssetIntegrator._instance is not null)
+                //{
+                //    if (Thundagun.AssetTask is not null)
+                //    {
+                //        Thundagun.Msg("waiting on asset thread!");
+                //        Thundagun.AssetTask.Wait();
+                //        Thundagun.Msg("returning amount of assets updated!");
+                //        Engine.Current.AssetsUpdated(Thundagun.AssetTask.Result);
+                //    }
+                //    else
+                //    {
+
+                //        Thundagun.Msg("telling game engine that no assets have updated.");
+                //        Engine.Current.AssetsUpdated(0);
+                //    }
+                //    Thundagun.Msg("creating asset task");
+                //    Thundagun.AssetTask = Task.Run<int>(() =>
+                //    {
+                //        Thundagun.Msg("starting unity queue processing.");
+                //        return UnityAssetIntegrator._instance.ProcessQueue1(1000);
+                //    });
+                //}
                 if (UnityAssetIntegrator._instance is not null)
                 {
-                    //TODO: do we need to limit the ms time?
                     Engine.Current.AssetsUpdated(UnityAssetIntegrator._instance.ProcessQueue1(1000));
                 }
-                
-                //var assetTime = totalTimer.Elapsed.TotalSeconds;
-                
+                var assetTime = DateTime.Now;
+
                 Thundagun.CurrentTask = Task.Run(() =>
                 {
                     engine.RunUpdateLoop();
                 });
 
-                //var loopTime = totalTimer.Elapsed.TotalSeconds;
+                
+
+
+
+                var loopTime = DateTime.Now;
 
                 foreach (var update in updates)
                 {
@@ -208,7 +244,7 @@ public static class FrooxEngineRunnerPatch
                     }
                 }
                 
-                //var updateTime = totalTimer.Elapsed.TotalSeconds;
+                var updateTime = DateTime.Now;
 
                 //uhhh???
                 if (focusedWorld != lastFocused)
@@ -221,22 +257,32 @@ public static class FrooxEngineRunnerPatch
                 }
                 UpdateQualitySettings(__instance);
                 
-                //var finishTime = totalTimer.Elapsed.TotalSeconds;
-                
-                /*
-                if (Thundagun.Config.GetValue(Thundagun.OutputDebug))
+                var finishTime = DateTime.Now;
+
+
+
+                if (Thundagun.Config.GetValue(Thundagun.OutputDebug) && (finishTime-starttime).TotalSeconds > .0005) 
                 {
-                    Thundagun.Msg($"Wait time: {waitTime} Boilerplate: {boilerplateTime} Asset Integration time: {assetTime} Loop time: {loopTime} Update time: {updateTime} Finished: {finishTime}");
+                    Thundagun.Msg("detecting lag, running print statement!");
+                    Thundagun.Msg($"Wait time: {(waitTime-starttime).TotalSeconds} Boilerplate: {(boilerplateTime - waitTime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds}");
                 }
-                */
+                
 
                 //__instance.UpdateFrooxEngine();
             }
             catch (Exception ex)
             {
+                Thundagun.Msg($"Exception updating FrooxEngine:\n{ex}");
+                DateTime startwait = DateTime.Now;
+                int i = 0;
+                while((startwait - DateTime.Now).TotalSeconds < 10)
+                {
+                    i++; //just to give it something to do.
+                }
                 UniLog.Error($"Exception updating FrooxEngine:\n{ex}");
                 ____frooxEngine = null;
                 __instance.Shutdown(ref ____frooxEngine);
+
                 return false;
             }
             __instance.DynamicGI?.UpdateDynamicGI();
@@ -407,7 +453,7 @@ public static class WorkerInitializerPatch
         if (array.Length == 1)
         {
             __result.connectorType = array[0];
-            //Thundagun.Msg($"Patched " + workerType.Name);
+            Thundagun.Msg($"Patched " + workerType.Name);
         }
     }
 }

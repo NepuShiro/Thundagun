@@ -136,8 +136,14 @@ public class RenderConnector : IRenderConnector
     public static void RegisterUnityCamera(UnityEngine.Camera camera) =>
         camera.gameObject.AddComponent<ShaderCameraProperties>();
 
-    public void SetupPostProcessing(FrooxEngine.Camera camera, bool motionBlur, bool screenspaceReflections) =>
-        CameraInitializer.SetupPostProcessing(camera.ToUnity(), motionBlur, screenspaceReflections);
+    public void SetupPostProcessing(FrooxEngine.Camera camera, bool motionBlur, bool screenspaceReflections)
+    {
+        CameraSettings settings = new CameraSettings();
+        settings.MotionBlur = motionBlur;
+        settings.ScreenSpaceReflection = screenspaceReflections;
+        CameraInitializer.SetupPostProcessing(camera.ToUnity(), settings);
+    }
+        
 
     public void RemovePostProcessing(FrooxEngine.Camera camera) =>
         CameraInitializer.RemovePostProcessing(camera.ToUnity());

@@ -11,6 +11,8 @@ using SharpDX.Direct3D;
 using SharpDX.Direct3D11;
 using SharpDX.DXGI;
 using UnityEngine.Rendering;
+using Unity.Collections;
+using UnityEngine.Experimental.Rendering;
 
 namespace Thundagun.NewConnectors.AssetConnectors;
 
@@ -18,10 +20,12 @@ public class TextureConnector :
     AssetConnector,
     ITexture2DConnector,
     ICubemapConnector,
-    IUnityTextureProvider
+    IUnityTextureProvider, ITexture3DConnector
 {
+    private ColorProfile? _targetProfile;
     private UnityEngine.Texture2D _unityTexture2D;
     private UnityEngine.Cubemap _unityCubemap;
+    private UnityEngine.Texture3D _unityTexture3D;
     public const int TIMESLICE_RESOLUTION = 65536;
 
     private SharpDX.Direct3D11.Texture2D _dx11Tex;
@@ -32,10 +36,12 @@ public class TextureConnector :
     private int _anisoLevel;
     private FrooxEngine.TextureWrapMode _wrapU;
     private FrooxEngine.TextureWrapMode _wrapV;
+    private FrooxEngine.TextureWrapMode _wrapW;
     private float _mipmapBias;
     private AssetIntegrated _onPropertiesSet;
     private int _lastLoadedMip;
     private bool _texturePropertiesDirty;
+    
 
     public UnityEngine.Texture2D UnityTexture2D => _unityTexture2D;
 
@@ -81,9 +87,68 @@ public class TextureConnector :
             Profile = profile
         });
     }
+    public void SetTexture3DFormat(int width, int height, int depth, int mipmaps, Elements.Assets.TextureFormat format, ColorProfile profile, AssetIntegrated onDone)
+    {
+        this.SetTextureFormat(new TextureConnector.TextureFormatData
+        {
+            Type = TextureConnector.TextureType.Texture3D,
+            Width = width,
+            Height = height,
+            Depth = depth,
+            Mips = mipmaps,
+            Format = format,
+            OnDone = onDone,
+            Profile = profile
+        });
+    }
+
+    private void SetTextureFormatUnity(TextureConnector.TextureFormatData format)
+    {
+        bool environmentInstanceChanged = false;
+        if (format.Type == TextureConnector.TextureType.Texture2D)
+        {
+            UnityEngine.TextureFormat textureFormat = format.Format.ToUnity(true);
+            if (this._unityTexture2D == null || this._unityTexture2D.width != format.Width || this._unityTexture2D.height != format.Height || this._unityTexture2D.format != textureFormat || this._unityTexture2D.mipmapCount > 1 != format.Mips > 1)
+            {
+                this.Destroy();
+                this._unityTexture2D = new UnityEngine.Texture2D(format.Width, format.Height, textureFormat, format.Mips > 1);
+                environmentInstanceChanged = true;
+            }
+        }
+        else if (format.Type == TextureConnector.TextureType.Texture3D)
+        {
+            ColorProfile profile = format.Profile;
+            GraphicsFormat graphicsFormat = format.Format.ToUnityExperimental(ref profile);
+            if (profile != format.Profile)
+            {
+                this._targetProfile = new ColorProfile?(profile);
+            }
+            if (!(this._unityTexture3D == null) && this._unityTexture3D.width == format.Width && this._unityTexture3D.height == format.Height && this._unityTexture3D.depth == format.Depth && this._unityTexture3D.graphicsFormat == graphicsFormat && this._unityTexture3D.mipmapCount > 1 == format.Mips > 1)
+            {
+                ColorProfile colorProfile = profile;
+                ColorProfile? targetProfile = this._targetProfile;
+                if (colorProfile == targetProfile.GetValueOrDefault() & targetProfile != null)
+                {
+                    goto IL_199;
+                }
+            }
+            this.Destroy();
+            this._targetProfile = new ColorProfile?(profile);
+            this._unityTexture3D = new UnityEngine.Texture3D(format.Width, format.Height, format.Depth, graphicsFormat, TextureCreationFlags.None);
+            environmentInstanceChanged = true;
+        }
+        IL_199:
+        this.AssignTextureProperties();
+        format.OnDone(environmentInstanceChanged);
+    }
 
     private void SetTextureFormat(TextureFormatData format)
     {
+        if (format.Type == TextureConnector.TextureType.Texture3D)
+        {
+            UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => SetTextureFormatUnity(format));
+            return;
+        }
         switch (UnityAssetIntegrator.GraphicsDeviceType)
         {
             case GraphicsDeviceType.Direct3D11:
@@ -98,6 +163,8 @@ public class TextureConnector :
                 */
         }
     }
+
+
 
     public void SetTexture2DData(Bitmap2D data, int startMipLevel, TextureUploadHint hint, AssetIntegrated onSet) =>
         SetTextureData(new TextureUploadData
@@ -118,6 +185,10 @@ public class TextureConnector :
 
     private void SetTextureData(TextureUploadData data)
     {
+        if (data.Bitmap3D != null) {
+			UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => UploadTextureDataUnity(data));
+            return;
+        }
         switch (UnityAssetIntegrator.GraphicsDeviceType)
         {
             case GraphicsDeviceType.Direct3D11:
@@ -147,6 +218,77 @@ public class TextureConnector :
             }
             */
         }
+    }
+
+    private void UploadTextureDataUnity(TextureConnector.TextureUploadData data)
+    {
+        if (data.Bitmap2D != null)
+        {
+            int2 @int = new int2(this._unityTexture2D.width, this._unityTexture2D.height);
+            int num = 0;
+            for (int i = 0; i < data.StartMip; i++)
+            {
+                int2 int2 = Bitmap2DBase.AlignSize(@int, data.Format);
+                num += int2.x * int2.y;
+                @int = @int / 2;
+                @int = MathX.Max(@int, 1);
+            }
+            num = (int)MathX.BitsToBytes((double)num * data.Format.GetBitsPerPixel());
+            NativeArray<byte> rawTextureData = this._unityTexture2D.GetRawTextureData<byte>();
+            Bitmap2D bitmap2D = data.Bitmap2D;
+            byte[] array;
+            if ((array = ((bitmap2D != null) ? bitmap2D.RawData : null)) == null)
+            {
+                BitmapCube bitmapCube = data.BitmapCube;
+                array = ((bitmapCube != null) ? bitmapCube.RawData : null);
+            }
+            byte[] array2 = array;
+            for (int j = 0; j < array2.Length; j++)
+            {
+                rawTextureData[j + num] = array2[j];
+            }
+        }
+        else if (data.Bitmap3D != null)
+        {
+            ColorProfile profile = data.Bitmap3D.Profile;
+            ColorProfile? targetProfile = this._targetProfile;
+            if (!(profile == targetProfile.GetValueOrDefault() & targetProfile != null))
+            {
+                data.Bitmap3D.ConvertToProfile(this._targetProfile.Value);
+            }
+            this._unityTexture3D.SetPixelData<byte>(data.Bitmap3D.RawData, data.StartMip, 0);
+        }
+        if (data.StartMip == 0)
+        {
+            UnityEngine.Texture2D unityTexture2D = this._unityTexture2D;
+            if (unityTexture2D != null)
+            {
+                unityTexture2D.Apply(false, !data.Hint.readable);
+            }
+            UnityEngine.Cubemap unityCubemap = this._unityCubemap;
+            if (unityCubemap != null)
+            {
+                unityCubemap.Apply(false, !data.Hint.readable);
+            }
+            UnityEngine.Texture3D unityTexture3D = this._unityTexture3D;
+            if (unityTexture3D != null)
+            {
+                unityTexture3D.Apply(false, !data.hint3D.readable);
+            }
+            base.Engine.TextureUpdated();
+        }
+        data.OnDone(false);
+    }
+
+    public void SetTexture3DData(Bitmap3D data, Texture3DUploadHint hint, AssetIntegrated onSet)
+    {
+        this.SetTextureData(new TextureConnector.TextureUploadData
+        {
+            Bitmap3D = data,
+            StartMip = 0,
+            OnDone = onSet,
+            hint3D = hint
+        });
     }
 
     public void SetTexture2DProperties(
@@ -185,12 +327,47 @@ public class TextureConnector :
         UnityAssetIntegrator.EnqueueProcessing(UpdateTextureProperties, Asset.HighPriorityIntegration);
     }
 
+    public void SetTexture3DProperties(TextureFilterMode filterMode, FrooxEngine.TextureWrapMode wrapU, FrooxEngine.TextureWrapMode wrapV, FrooxEngine.TextureWrapMode wrapW, AssetIntegrated onSet)
+    {
+        this._texturePropertiesDirty = true;
+        this._filterMode = filterMode;
+        this._wrapU = wrapU;
+        this._wrapV = wrapV;
+        this._wrapW = wrapW;
+        this._onPropertiesSet = onSet;
+        if (onSet != null)
+        {
+            base.UnityAssetIntegrator.EnqueueProcessing(new Action(this.UpdateTextureProperties), this.Asset.HighPriorityIntegration);
+        }
+    }
+
     public override void Unload() => UnityAssetIntegrator.EnqueueProcessing(Destroy, true);
+
+    private IEnumerator DestroyDX11(ShaderResourceView resource, SharpDX.Direct3D11.Texture2D tex)
+    {
+        if (resource != null)
+        {
+            resource.Dispose();
+        }
+        if (tex != null)
+        {
+            tex.Dispose();
+        }
+        yield break;
+    }
 
     private void Destroy()
     {
-        if (_unityTexture2D) UnityEngine.Object.Destroy(_unityTexture2D);
-        _unityTexture2D = null;
+        if (this._dx11Resource != null)
+        {
+            base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.DestroyDX11(this._dx11Resource, this._dx11Tex));
+            this._dx11Tex = null;
+            this._dx11Resource = null;
+        }
+        this._unityTexture2D = null;
+        this._unityCubemap = null;
+        this._unityTexture2D = null;
+        this._targetProfile = null;
     }
 
     private void AssignTextureProperties()
@@ -230,6 +407,24 @@ public class TextureConnector :
             }
 
             _unityCubemap.mipMapBias = _mipmapBias;
+        }
+
+        if (this._unityTexture3D != null)
+        {
+            if (this._filterMode == TextureFilterMode.Anisotropic)
+            {
+                this._unityTexture3D.filterMode = FilterMode.Trilinear;
+                this._unityTexture3D.anisoLevel = this._anisoLevel;
+            }
+            else
+            {
+                this._unityTexture3D.filterMode = this._filterMode.ToUnity();
+                this._unityTexture3D.anisoLevel = 0;
+            }
+            this._unityTexture3D.mipMapBias = this._mipmapBias;
+            this._unityTexture3D.wrapModeU = this._wrapU.ToUnity();
+            this._unityTexture3D.wrapModeV = this._wrapV.ToUnity();
+            this._unityTexture3D.wrapModeW = this._wrapW.ToUnity();
         }
     }
 
@@ -433,6 +628,7 @@ public class TextureConnector :
     {
         Texture2D,
         Cubemap,
+        Texture3D
     }
 
     private class TextureFormatData
@@ -440,6 +636,7 @@ public class TextureConnector :
         public TextureType Type;
         public int Width;
         public int Height;
+        public int Depth;
         public int Mips;
         public Elements.Assets.TextureFormat Format;
         public AssetIntegrated OnDone;
@@ -453,6 +650,7 @@ public class TextureConnector :
                 {
                     TextureType.Texture2D => 1,
                     TextureType.Cubemap => 6,
+                    TextureType.Texture3D => Depth,
                     _ => throw new Exception("Invalid texture type: " + Type)
                 };
             }
@@ -463,6 +661,8 @@ public class TextureConnector :
     {
         public Bitmap2D Bitmap2D;
 
+        public Bitmap3D Bitmap3D;
+
         public BitmapCube BitmapCube;
 
         public int StartMip;
@@ -471,32 +671,97 @@ public class TextureConnector :
 
         public AssetIntegrated OnDone;
 
-        public Bitmap Bitmap => (Bitmap) Bitmap2D ?? BitmapCube;
+        public Texture3DUploadHint hint3D;
+
+        public Bitmap Bitmap
+        {
+            get
+            {
+                Bitmap result;
+                if ((result = this.Bitmap2D) == null)
+                {
+                    result = ((this.BitmapCube != null) ? this.BitmapCube : this.Bitmap3D);
+                }
+                return result;
+            }
+        }
 
         public Elements.Assets.TextureFormat Format => Bitmap.Format;
 
-        public int2 FaceSize => Bitmap2D?.Size ?? BitmapCube?.Size ?? int2.Zero;
+
+        public int2 FaceSize
+        {
+            get
+            {
+                Bitmap2D bitmap2D = this.Bitmap2D;
+                if (bitmap2D != null)
+                {
+                    return bitmap2D.Size;
+                }
+                BitmapCube bitmapCube = this.BitmapCube;
+                if (bitmapCube == null)
+                {
+                    return int2.Zero;
+                }
+                return bitmapCube.Size;
+            }
+        }
+
+        public int2 MipMapSize(int mip)
+        {
+            Bitmap2D bitmap2D = this.Bitmap2D;
+            if (bitmap2D != null)
+            {
+                return bitmap2D.MipMapSize(mip);
+            }
+            BitmapCube bitmapCube = this.BitmapCube;
+            if (bitmapCube == null)
+            {
+                return int2.Zero;
+            }
+            return bitmapCube.MipMapSize(mip);
+        }
 
         public int ElementCount
         {
             get
             {
-                if (Bitmap2D != null) return 1;
-                if (BitmapCube != null) return 6;
-                throw new Exception("Invalid state, must have either Bitmap2D or BitmapCUBE");
+                if (this.Bitmap2D != null)
+                {
+                    return 1;
+                }
+                if (this.BitmapCube != null)
+                {
+                    return 6;
+                }
+                if (this.Bitmap3D != null)
+                {
+                    return this.Bitmap3D.Size.z;
+                }
+                throw new Exception("Invalid state, must have either Bitmap2D, BitmapCUBE or Bitmap3D");
             }
         }
 
-        public int2 MipMapSize(int mip) => Bitmap2D?.MipMapSize(mip) ?? BitmapCube?.MipMapSize(mip) ?? int2.Zero;
-
-        public int PixelStart(int x, int y, int mip, int face) => Bitmap2D?.PixelStart(x, y, mip) ??
-                                                                  BitmapCube.PixelStart(x, y, (BitmapCube.Face) face,
-                                                                      mip);
+        public int PixelStart(int x, int y, int mip, int face)
+        {
+            Bitmap2D bitmap2D = this.Bitmap2D;
+            if (bitmap2D == null)
+            {
+                return this.BitmapCube.PixelStart(x, y, (BitmapCube.Face)face, mip);
+            }
+            return bitmap2D.PixelStart(x, y, mip);
+        }
 
         public void ConvertTo(Elements.Assets.TextureFormat format)
         {
-            Bitmap2D = Bitmap2D?.ConvertTo(format);
-            BitmapCube = BitmapCube?.ConvertTo(format);
+            if (this.Bitmap2D != null)
+            {
+                this.Bitmap2D = this.Bitmap2D.ConvertTo(format);
+            }
+            if (this.BitmapCube != null)
+            {
+                this.BitmapCube = this.BitmapCube.ConvertTo(format);
+            }
         }
     }
 }

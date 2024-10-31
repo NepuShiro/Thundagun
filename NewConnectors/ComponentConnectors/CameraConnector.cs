@@ -82,7 +82,7 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
     public List<SlotConnector> ExcludeRender;
     public int CullingMask;
     public bool Active;
-    
+
     public ApplyChangesCameraConnector(CameraConnector owner) : base(owner)
     {
         Orthographic = owner.Owner.Projection.Value == CameraProjection.Orthographic;
@@ -134,17 +134,38 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
         Owner.UnityCamera.depth = Depth;
         Owner.UnityCamera.renderingPath = RenderingPath;
         Owner.RenderEx.RenderShadows = RenderShadows;
-        
+
+
         if (SetupPostProcessing || RemovePostProcessing)
         {
             Owner.UnityCamera.targetTexture = null;
             Owner.PostprocessingSetup = PostprocessingSetup;
             Owner.ScreenspaceReflections = ScreenspaceReflections;
             Owner.MotionBlur = MotionBlur;
-            if (SetupPostProcessing) CameraInitializer.SetupPostProcessing(Owner.UnityCamera, Owner.MotionBlur, Owner.ScreenspaceReflections);
+            CameraSettings settings = new CameraSettings();
+            settings.MotionBlur = Owner.MotionBlur;
+            settings.ScreenSpaceReflection = Owner.ScreenspaceReflections;
+            settings.IsVR = false;
+            if (SetupPostProcessing) CameraInitializer.SetupPostProcessing(Owner.UnityCamera, settings);
             else CameraInitializer.RemovePostProcessing(Owner.UnityCamera);
         }
-        
+        //if (base.Owner.Postprocessing != this.postprocessingSetup || base.Owner.ScreenSpaceReflections != this.screenspaceReflections || base.Owner.MotionBlur != this.motionBlur)
+        //{
+        //    this.UnityCamera.targetTexture = null;
+        //    this.postprocessingSetup = base.Owner.Postprocessing;
+        //    this.screenspaceReflections = base.Owner.ScreenSpaceReflections;
+        //    this.motionBlur = base.Owner.MotionBlur;
+        //    if (base.Owner.Postprocessing)
+        //    {
+        //        base.Owner.World.Render.Connector.SetupPostProcessing(base.Owner, this.motionBlur, this.screenspaceReflections);
+        //    }
+        //    else
+        //    {
+        //        base.Owner.World.Render.Connector.RemovePostProcessing(base.Owner);
+        //    }
+        //}
+
+
         Owner.RenderEx.Texture = Texture?.RenderTexture;
         Owner.RenderEx.DoubleBuffer = DoubleBuffer && !PostprocessingSetup;
         Owner.RenderEx.SelectiveRender.Clear();

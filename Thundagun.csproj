@@ -4,11 +4,16 @@
     <TargetFramework>net4.7.2</TargetFramework>
     <ResonitePath>$(MSBuildThisFileDirectory)Resonite</ResonitePath>
     <ResonitePath Condition="Exists('C:\Program Files (x86)\Steam\steamapps\common\Resonite\')">C:\Program Files (x86)\Steam\steamapps\common\Resonite\</ResonitePath>
-    <ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
+	  <ResonitePath Condition="Exists('D:\SteamLibrary\steamapps\common\Resonite\')">D:\SteamLibrary\steamapps\common\Resonite\</ResonitePath>
+	  <ResonitePath Condition="Exists('$(HOME)/.steam/steam/steamapps/common/Resonite/')">$(HOME)/.steam/steam/steamapps/common/Resonite/</ResonitePath>
     <ResonitePath Condition="Exists('/mnt/LocalDisk2/SteamLibrary/steamapps/common/Resonite/')">/mnt/LocalDisk2/SteamLibrary/steamapps/common/Resonite/</ResonitePath>
     <ResonitePath Condition="Exists('/mnt/LocalDisk2/SteamLibrary/steamapps/common/ResoniteWin/')">/mnt/LocalDisk2/SteamLibrary/steamapps/common/ResoniteWin/</ResonitePath>
     <LangVersion>latest</LangVersion>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Remove="NewConnectors\AssetConnectors\Texture3DConnector.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="ResoniteModLoader">
@@ -83,5 +88,9 @@
       <HintPath Condition="Exists('$(ResonitePath)rml_libs/0Harmony.dll')">$(ResonitePath)rml_libs/0Harmony.dll</HintPath>
     </Reference>
   </ItemGroup>
+
+  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
+    <Exec Command="copy &quot;$(TargetDir)\$(TargetFileName)&quot; &quot;$(ResonitePath)\rml_mods\&quot;" />
+  </Target>
 
 </Project>

@@ -12,16 +12,14 @@ using TextureWrapMode = FrooxEngine.TextureWrapMode;
 
 namespace Thundagun.NewConnectors.AssetConnectors;
 
-  public class Texture3DConnector : 
-    AssetConnector,
-    ITexture3DConnector,
-    IUnityTextureProvider
-  {
+  public class Texture3DConnector :
+    AssetConnector, ITexture2DConnector, IAssetConnector, ICubemapConnector, ITexture3DConnector, IUnityTextureProvider
+{
     public Texture3D UnityTexture3D { get; private set; }
 
     public Texture UnityTexture => UnityTexture3D;
 
-    public void SetTextureData(Bitmap3D data, AssetIntegrated onSet)
+    public void SetTexture3DData(Bitmap3D data, Texture3DUploadHint hint, AssetIntegrated onSet)
     {
       UniLog.Log($"Texture's color profile is: {data.Profile}");
       var colors = new Color[data.TotalPixels];
@@ -30,16 +28,16 @@ namespace Thundagun.NewConnectors.AssetConnectors;
         var colorX = new colorX(data.DecodePixel(index), data.Profile);
         colors[index] = colorX.ToProfile(ColorProfile.Linear).ToUnity();
       }
-      UnityAssetIntegrator.EnqueueProcessing(UploadTextureData(data, t => t.SetPixels(colors), onSet), Asset.HighPriorityIntegration);
+      UnityAssetIntegrator.EnqueueProcessing(SetTexture3DData(data, t => t.SetPixels(colors), onSet), Asset.HighPriorityIntegration);
     }
 
     public void UpdateProperties(
       TextureWrapMode wrapU,
       TextureWrapMode wrapV,
-      TextureWrapMode wrapW,
+      TextureWrapMode wrapW, 
       AssetIntegrated onSet)
     {
-      UnityAssetIntegrator.EnqueueProcessing(() => UpdateTextureProperties(wrapU, wrapV, wrapW, onSet), true);
+      UnityAssetIntegrator.EnqueueProcessing(() => SetTexture3DProperties(wrapU, wrapV, wrapW, onSet), true);
     }
 
     public override void Unload() => UnityAssetIntegrator.EnqueueProcessing(Destroy, true);
@@ -52,10 +50,11 @@ namespace Thundagun.NewConnectors.AssetConnectors;
       UnityTexture3D = null;
     }
 
-    private void UpdateTextureProperties(
+    private void SetTexture3DProperties(
       TextureWrapMode wrapU,
       TextureWrapMode wrapV,
-      TextureWrapMode wrapW,
+      TextureWrapMode wrapW, 
+      ColorProfile profile,
       AssetIntegrated onSet)
     {
       if (UnityTexture3D != null)
@@ -67,7 +66,7 @@ namespace Thundagun.NewConnectors.AssetConnectors;
       onSet(false);
     }
 
-    private IEnumerator UploadTextureData(
+    private IEnumerator SetTexture3DData(
       Bitmap3D data,
       Action<Texture3D> setData,
       AssetIntegrated onDone)

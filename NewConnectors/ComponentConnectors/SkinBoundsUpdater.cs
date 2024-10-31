@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
 using UnityEngine;

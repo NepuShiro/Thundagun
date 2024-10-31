@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Elements.Assets;
 using Elements.Core;
 using FrooxEngine;
 using UnityFrooxEngineRunner;
@@ -28,6 +29,8 @@ public class SkinnedMeshRendererConnector :
     public event Action BoundsUpdated;
 
     public override bool UseMeshFilter => false;
+
+    public bool ForceRecalcActive => throw new NotImplementedException();
 
     public override void AssignMesh(UnityEngine.SkinnedMeshRenderer renderer, Mesh mesh) => renderer.sharedMesh = mesh;
 

@@ -125,6 +125,8 @@ public class UnityAssetIntegrator : IAssetManagerConnector
     public int ProcessQueue1(double maxMilliseconds)
     {
         //Thundagun.Msg("Processing asset queue");
+        
+
         while (_taskQueue.TryDequeue(out var val))
         {
             try
@@ -138,7 +140,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         }
         if (RenderThreadProcessingEnabled && renderThreadQueue.Count > 0)
         {
-            GL.IssuePluginEvent(renderThreadPointer, 0);
+            //GL.IssuePluginEvent(renderThreadPointer, 0);
         }
         return ProcessQueue2(maxMilliseconds, false);
     }
