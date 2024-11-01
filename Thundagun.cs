@@ -29,20 +29,29 @@ public class Thundagun : ResoniteMod
 
     public static double Performance;
 
-    public static readonly List<IUpdatePacket> CurrentPackets = new();
+    public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
     public static Task CurrentTask;
 
     //public static Task<int> AssetTask;
 
     //public static Thread CurrentThread;
-    public static void QueuePacket(IUpdatePacket packet) => CurrentPackets.Add(packet);
+    public static void QueuePacket(IUpdatePacket packet) {
+        lock (CurrentPackets)
+        {
+            CurrentPackets.Enqueue(packet);
+        }
+    } 
     
     internal static ModConfiguration Config;
     
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> OutputDebug =
         new("OutputDebug", "Output Debug", () => true);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<float> TickRate =
+        new("TickRate", "Tick Rate", () => 20);
+
 
     public override void OnEngineInit()
     {
@@ -137,11 +146,12 @@ public class Thundagun : ResoniteMod
 [HarmonyPatch(typeof(FrooxEngineRunner))]
 public static class FrooxEngineRunnerPatch
 {
-    public static int assets_updated = 0;
 
+    public static ConcurrentQueue<int> assets_processed = new ConcurrentQueue<int>();
 
+    public static DateTime lastTick;
     
-
+    public static bool shutdown = false;
 
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
@@ -150,6 +160,7 @@ public static class FrooxEngineRunnerPatch
         ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld, 
         ref HeadOutput ____vrOutput, ref HeadOutput ____screenOutput, ref AudioListener ____audioListener, ref List<World> ____worlds)
     {
+        shutdown = ____shutdownRequest;
         if (!__instance.IsInitialized || ____frooxEngine == null)
             return false;
         if (____shutdownRequest)
@@ -165,9 +176,29 @@ public static class FrooxEngineRunnerPatch
             {
                 UpdateFrameRate(__instance);
                 DateTime starttime = DateTime.Now;
-
+                var engine = ____frooxEngine;
                 //if we have a current task, wait for it to finish
-                if (Thundagun.CurrentTask is not null) Thundagun.CurrentTask.Wait();
+                if (Thundagun.CurrentTask is null)
+                {
+                    Thundagun.CurrentTask = Task.Run(() =>
+                    {
+                        while (!shutdown)
+                        {
+                            if ((DateTime.Now - lastTick).TotalSeconds > (1 / Thundagun.Config.GetValue(Thundagun.TickRate)))
+                            {
+                                int total = 0;
+                                while(assets_processed.TryDequeue(out int result)){
+                                    total += result;
+                                }
+                                lastTick = DateTime.Now;
+                                engine.AssetsUpdated(total); //inform engine we updated the assets from the render queue.
+                                engine.RunUpdateLoop(); // generate our next engine update.
+                            }
+                        }
+                        
+                    });
+
+                }
                 //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
                 
                 var waitTime = DateTime.Now;
@@ -177,21 +208,25 @@ public static class FrooxEngineRunnerPatch
                 //if (Thundagun.AssetTask?.Exception is not null) throw Thundagun.AssetTask.Exception;
 
                 //head output and framerate boilerplate
-                var focusedWorld = ____frooxEngine.WorldManager.FocusedWorld;
+                var focusedWorld = engine.WorldManager.FocusedWorld;
                 var lastFocused = ____lastFocusedWorld;
-                UpdateHeadOutput(focusedWorld, ____frooxEngine, ____vrOutput, ____screenOutput, ____audioListener, ref ____worlds);
+                UpdateHeadOutput(focusedWorld, engine, ____vrOutput, ____screenOutput, ____audioListener, ref ____worlds);
                 //more boilerplate
-                ____frooxEngine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
+                engine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
                 
                 //finally the interesting shit
                 //first, we copy the list of current update packets into a local variable
                 //then, we clear the original list and start the async update task
                 
                 var boilerplateTime = DateTime.Now;
-
-                var updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
-                Thundagun.CurrentPackets.Clear();
-                var engine = ____frooxEngine;
+                List<IUpdatePacket> updates;
+                lock (Thundagun.CurrentPackets)
+                {
+                    updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
+                    Thundagun.CurrentPackets.Clear();
+                }
+                
+                
 
                 //if (UnityAssetIntegrator._instance is not null)
                 //{
@@ -217,14 +252,12 @@ public static class FrooxEngineRunnerPatch
                 //}
                 if (UnityAssetIntegrator._instance is not null)
                 {
-                    Engine.Current.AssetsUpdated(UnityAssetIntegrator._instance.ProcessQueue1(1000));
+                    //we inform the engine that the assets updated later.
+                    assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
                 }
                 var assetTime = DateTime.Now;
 
-                Thundagun.CurrentTask = Task.Run(() =>
-                {
-                    engine.RunUpdateLoop();
-                });
+                
 
                 
 

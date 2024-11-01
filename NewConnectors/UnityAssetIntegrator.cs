@@ -140,7 +140,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         }
         if (RenderThreadProcessingEnabled && renderThreadQueue.Count > 0)
         {
-            //GL.IssuePluginEvent(renderThreadPointer, 0);
+            GL.IssuePluginEvent(renderThreadPointer, 0);
         }
         return ProcessQueue2(maxMilliseconds, false);
     }
