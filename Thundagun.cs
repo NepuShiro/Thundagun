@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using Leap;
 using ResoniteModLoader;
 using UnityEngine;
 using UnityEngine.XR;
@@ -31,16 +32,20 @@ public class Thundagun : ResoniteMod
 
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
+    //public static List<IUpdatePacket> CurrentPackets = new();
+
     public static Task CurrentTask;
 
     //public static Task<int> AssetTask;
 
     //public static Thread CurrentThread;
     public static void QueuePacket(IUpdatePacket packet) {
+
         lock (CurrentPackets)
         {
             CurrentPackets.Enqueue(packet);
         }
+        
     } 
     
     internal static ModConfiguration Config;
@@ -50,14 +55,14 @@ public class Thundagun : ResoniteMod
         new("OutputDebug", "Output Debug", () => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> TickRate =
-        new("TickRate", "Tick Rate", () => 20);
+        new("TickRate", "Tick Rate", () => 30);
 
 
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
-        
+
         PatchEngineTypes();
         PatchComponentConnectors(harmony);
 
@@ -147,10 +152,13 @@ public class Thundagun : ResoniteMod
 public static class FrooxEngineRunnerPatch
 {
 
-    public static ConcurrentQueue<int> assets_processed = new ConcurrentQueue<int>();
+    public static Queue<int> assets_processed = new();
 
+    public static DateTime lastrender;
     public static DateTime lastTick;
-    
+
+    public static bool firstrunengine = false;
+    //public static bool firstrunrender = false;
     public static bool shutdown = false;
 
     [HarmonyPrefix]
@@ -166,7 +174,7 @@ public static class FrooxEngineRunnerPatch
         if (____shutdownRequest)
         {
             //Thundagun.AssetTask.Wait();
-            Thundagun.CurrentTask.Wait();
+            //Thundagun.CurrentTask.Wait();
             __instance.Shutdown(ref ____frooxEngine);
         }
         else
@@ -176,32 +184,47 @@ public static class FrooxEngineRunnerPatch
             {
                 UpdateFrameRate(__instance);
                 DateTime starttime = DateTime.Now;
+                
+                
                 var engine = ____frooxEngine;
                 //if we have a current task, wait for it to finish
                 if (Thundagun.CurrentTask is null)
                 {
                     Thundagun.CurrentTask = Task.Run(() =>
                     {
-                        while (!shutdown)
+
+                        while (!shutdown) 
                         {
-                            if ((DateTime.Now - lastTick).TotalSeconds > (1 / Thundagun.Config.GetValue(Thundagun.TickRate)))
+                            int total = 0;
+                            lock (assets_processed) //so we don't spiral into oblivion where the assets processed grows faster than the while loop can dequeue them.
                             {
-                                int total = 0;
-                                while(assets_processed.TryDequeue(out int result)){
-                                    total += result;
+                                while (assets_processed.Count() > 0)
+                                {
+                                    total += assets_processed.Dequeue();
                                 }
-                                lastTick = DateTime.Now;
-                                engine.AssetsUpdated(total); //inform engine we updated the assets from the render queue.
-                                engine.RunUpdateLoop(); // generate our next engine update.
                             }
+
+                            DateTime beforeEngine = DateTime.Now;
+                            engine.AssetsUpdated(total); //inform engine we updated the assets from the render queue.
+                            engine.RunUpdateLoop(); // generate our next engine update, adding packets to our list.
+                            TimeSpan engine_time = (DateTime.Now - beforeEngine);
+                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.TickRate))+1));
+                            if (engine_time < ticktime)
+                            {
+                                Task.Delay(ticktime - engine_time);
+                            }
+                            //Thundagun.CurrentPackets = new(); //create a new list to put packets into during the engine update loop iteration.
+                                
+                            //Thundagun.UpdatePackets.Enqueue(new List<IUpdatePacket>(Thundagun.CurrentPackets)); //enqueue the list, since we are done adding to it, so it can be processed by rendering.
+                                
                         }
-                        
+
+
                     });
 
                 }
                 //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
-                
-                var waitTime = DateTime.Now;
+               
 
                 //rethrow errors if they occured in the update loop
                 if (Thundagun.CurrentTask?.Exception is not null) throw Thundagun.CurrentTask.Exception;
@@ -211,6 +234,8 @@ public static class FrooxEngineRunnerPatch
                 var focusedWorld = engine.WorldManager.FocusedWorld;
                 var lastFocused = ____lastFocusedWorld;
                 UpdateHeadOutput(focusedWorld, engine, ____vrOutput, ____screenOutput, ____audioListener, ref ____worlds);
+
+
                 //more boilerplate
                 engine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
                 
@@ -225,8 +250,7 @@ public static class FrooxEngineRunnerPatch
                     updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
                     Thundagun.CurrentPackets.Clear();
                 }
-                
-                
+
 
                 //if (UnityAssetIntegrator._instance is not null)
                 //{
@@ -250,11 +274,16 @@ public static class FrooxEngineRunnerPatch
                 //        return UnityAssetIntegrator._instance.ProcessQueue1(1000);
                 //    });
                 //}
-                if (UnityAssetIntegrator._instance is not null)
+                if (UnityAssetIntegrator._instance is not null /* && (DateTime.Now- lastrender).TotalSeconds > 1*/) //run asset integrator always
                 {
-                    //we inform the engine that the assets updated later.
-                    assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
+                    lock (assets_processed)
+                    {
+                        //we inform the engine that the assets updated later.
+                        assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
+                    }
+                    
                 }
+                
                 var assetTime = DateTime.Now;
 
                 
@@ -277,9 +306,11 @@ public static class FrooxEngineRunnerPatch
                     }
                 }
                 
+
+                
+                
                 var updateTime = DateTime.Now;
 
-                //uhhh???
                 if (focusedWorld != lastFocused)
                 {
                     DynamicGIManager.ScheduleDynamicGIUpdate(true);
@@ -289,18 +320,17 @@ public static class FrooxEngineRunnerPatch
                     ____frooxEngine.GlobalCoroutineManager.RunInSeconds(5f, () => DynamicGIManager.ScheduleDynamicGIUpdate(true));
                 }
                 UpdateQualitySettings(__instance);
-                
+
                 var finishTime = DateTime.Now;
 
 
 
-                if (Thundagun.Config.GetValue(Thundagun.OutputDebug) && (finishTime-starttime).TotalSeconds > .0005) 
+                if (Thundagun.Config.GetValue(Thundagun.OutputDebug)) 
                 {
-                    Thundagun.Msg("detecting lag, running print statement!");
-                    Thundagun.Msg($"Wait time: {(waitTime-starttime).TotalSeconds} Boilerplate: {(boilerplateTime - waitTime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds}");
+                    Thundagun.Msg($"LastRender vs now: {(lastrender- starttime).TotalSeconds}");
+                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
                 }
-                
-
+                lastrender = DateTime.Now;
                 //__instance.UpdateFrooxEngine();
             }
             catch (Exception ex)
@@ -308,10 +338,9 @@ public static class FrooxEngineRunnerPatch
                 Thundagun.Msg($"Exception updating FrooxEngine:\n{ex}");
                 DateTime startwait = DateTime.Now;
                 int i = 0;
-                while((startwait - DateTime.Now).TotalSeconds < 10)
-                {
-                    i++; //just to give it something to do.
-                }
+                Task wait = new Task(() => Task.Delay(10000));
+                wait.Start();
+                wait.Wait(); //force wait for 5000 milliseconds.
                 UniLog.Error($"Exception updating FrooxEngine:\n{ex}");
                 ____frooxEngine = null;
                 __instance.Shutdown(ref ____frooxEngine);
@@ -401,6 +430,9 @@ public static class FrooxEngineRunnerPatch
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");
 
+
+    [HarmonyReversePatch]
+    [HarmonyPatch("UpdateQualitySettings")]
     private static void Shutdown(this FrooxEngineRunner runner, ref Engine engine)
     {
         UniLog.Log("Shutting down");

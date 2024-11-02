@@ -1,5 +1,6 @@
 using System;
 using System.Collections;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
@@ -19,10 +20,10 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 {
     public static UnityAssetIntegrator _instance;
     internal static SharpDX.Direct3D11.Device _dx11device;
-    private SpinQueue<QueueAction> _highpriorityQueue = new();
-    private SpinQueue<QueueAction> _processingQueue = new();
-    private SpinQueue<QueueAction> renderThreadQueue = new();
-    private SpinQueue<Action> _taskQueue = new();
+    private ConcurrentQueue<QueueAction> _highpriorityQueue = new();
+    private ConcurrentQueue<QueueAction> _processingQueue = new();
+    private ConcurrentQueue<QueueAction> renderThreadQueue = new();
+    private ConcurrentQueue<Action> _taskQueue = new();
     private Stopwatch _stopwatch = new();
     private double _maxMilliseconds;
     private Action<int> renderThreadCallback;
