@@ -429,10 +429,6 @@ public static class FrooxEngineRunnerPatch
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");
-
-
-    [HarmonyReversePatch]
-    [HarmonyPatch("UpdateQualitySettings")]
     private static void Shutdown(this FrooxEngineRunner runner, ref Engine engine)
     {
         UniLog.Log("Shutting down");
