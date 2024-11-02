@@ -34,6 +34,10 @@ public class SkinnedMeshRendererConnector :
 
     public override void AssignMesh(UnityEngine.SkinnedMeshRenderer renderer, Mesh mesh) => renderer.sharedMesh = mesh;
 
+    public override void ApplyChanges()
+    {
+        Thundagun.QueuePacket(new ApplyChangesSkinnedMeshRenderer(this));
+    }
     public void CleanupBoundsUpdater()
     {
         if (_boundsUpdater)
