@@ -17,7 +17,7 @@ Thundagun is a Resonite mod that decouples the game logic and rendering loops by
 
 ### Sync Mode
 
-The recommended mode for new users. Ensures each frame corresponds to on game update. Ideal for users prioritizing consistent frame timing and visual stability:
+The recommended mode for new users. Ensures each frame corresponds to one game update. Ideal for users prioritizing consistent frame timing and visual stability:
 
 - **Synchronized Execution**: Resonite and Unity operate in lockstep using a flip-flop boolean lock.
 - **Immediate Processing**: Changes are processed as soon as they become available.
