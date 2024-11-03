@@ -25,7 +25,7 @@ namespace Thundagun;
 public class Thundagun : ResoniteMod
 {
     public override string Name => "Thundagun";
-    public override string Author => "Fro Zen";
+    public override string Author => "Fro Zen, DoubleStyx, 989onan";
     public override string Version => "1.0.0";
 
     public static double Performance;
