@@ -114,7 +114,6 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
 
     public override void Update()
     {
-        //Thundagun.Msg($"Should be Enabled: {ShouldBeEnabled}");
         if (!ShouldBeEnabled)
         {
             Owner.CleanupRenderer(false);
