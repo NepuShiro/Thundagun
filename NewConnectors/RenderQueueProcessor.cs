@@ -10,45 +10,113 @@ namespace Thundagun.NewConnectors;
 public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
-    private Queue<RenderTask> tasks = new();
+    private Queue<Batch> batchQueue = new(); // Queue to hold batches of render tasks
+    
+    public void MarkAsCompleted()
+    {
+        lock (batchQueue)
+        {
+            if (batchQueue.Count > 0)
+            {
+                batchQueue.Peek().MarkComplete();
+            }
+        }
+    }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
-        lock (tasks)
-            tasks.Enqueue(renderTask);
+
+        lock (batchQueue)
+        {
+            if (batchQueue.Count == 0 || batchQueue.Peek().IsComplete)
+            {
+                var newBatch = new Batch();
+                batchQueue.Enqueue(newBatch);
+            }
+            batchQueue.Peek().AddTask(renderTask);
+        }
+
         return task.Task;
     }
 
     private void LateUpdate()
     {
-        lock (tasks)
+        bool useBatchProcessing = Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Async;
+        lock (batchQueue)
         {
-            if (tasks.Count == 0)
+            if (batchQueue.Count == 0)
             {
                 return;
             }
+
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
-            while (tasks.Count > 0)
+
+            if (useBatchProcessing)
             {
-                var renderTask = tasks.Dequeue();
-                try
+                while (batchQueue.Count > 0 && batchQueue.Peek().IsComplete)
                 {
-                    renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
+                    var completedBatch = batchQueue.Dequeue();
+                    foreach (var renderTask in completedBatch.Tasks)
+                    {
+                        try
+                        {
+                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
+                        }
+                        catch (Exception ex)
+                        {
+                            renderTask.task.SetException(ex);
+                        }
+                    }
                 }
-                catch (Exception ex)
+            }
+            else
+            {
+                // Process tasks individually if not using batching
+                while (batchQueue.Count > 0)
                 {
-                    renderTask.task.SetException(ex);
+                    var batch = batchQueue.Peek();
+                    while (batch.Tasks.Count > 0)
+                    {
+                        var renderTask = batch.Tasks.Dequeue();
+                        try
+                        {
+                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
+                        }
+                        catch (Exception ex)
+                        {
+                            renderTask.task.SetException(ex);
+                        }
+                    }
+                    if (batch.IsComplete)
+                    {
+                        batchQueue.Dequeue(); // Remove the completed empty batch
+                    }
                 }
             }
 
-            if (!renderingContext.HasValue)
+            if (renderingContext.HasValue)
             {
-                return;
+                RenderHelper.BeginRenderContext(renderingContext.Value);
             }
-            RenderHelper.BeginRenderContext(renderingContext.Value);
         }
+    }
+}
+
+public class Batch
+{
+    public Queue<RenderTask> Tasks { get; private set; } = new();
+    public bool IsComplete { get; private set; } = false;
+
+    public void AddTask(RenderTask task)
+    {
+        Tasks.Enqueue(task);
+    }
+
+    public void MarkComplete()
+    {
+        IsComplete = true;
     }
 }
