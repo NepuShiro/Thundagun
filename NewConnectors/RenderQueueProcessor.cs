@@ -43,7 +43,7 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool useBatchProcessing = Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Async;
+        bool useBatchProcessing = Thundagun.UseAsync;
         lock (batchQueue)
         {
             if (batchQueue.Count == 0)

@@ -29,6 +29,36 @@ public class Thundagun : ResoniteMod
     public override string Version => "1.0.0";
 
     public static double Performance;
+    public static DateTime unityStartTime = DateTime.Now;
+    public static DateTime resoniteStartTime = DateTime.Now;
+    private static double _unityEMA = 16.67;
+    private static double _resoniteEMA = 16.67;
+    public static void UpdateUnityEMA(double frameTime)
+    {
+        double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
+        _unityEMA = alpha * frameTime + (1 - alpha) * _unityEMA;
+    }
+    public static void UpdateResoniteEMA(double frameTime)
+    {
+        double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
+        _resoniteEMA = alpha * frameTime + (1 - alpha) * _resoniteEMA;
+    }
+    private static bool AsyncThresholdReached
+    {
+        get
+        {
+            double threshold = Config.GetValue(RatioThreshold);
+            return (_unityEMA / _resoniteEMA) > threshold || (_resoniteEMA / _unityEMA) > threshold;
+        }
+    }
+    public static bool UseAsync
+    {
+        get
+        {
+            return (Thundagun.Config.GetValue(Mode) == SyncMode.Async && !Thundagun.Config.GetValue(AutoMode)) || (Thundagun.Config.GetValue(AutoMode) && AsyncThresholdReached);
+        }
+    }
+    
 
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
@@ -51,14 +81,22 @@ public class Thundagun : ResoniteMod
     
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging", () => true);
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> DebugLoggingTickRate =
-        new("DebugLoggingTickRate", "Debug Logging Tick Rate", () => 30);
+        new("DebugLoggingTickRate", "Debug Logging Tick Rate: The rate at which debug logs are written.", () => 30);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<SyncMode> Mode =
-        new("SyncMode", "Sync Mode", () => SyncMode.Sync);
-
+        new("SyncMode", "Sync Mode: Whether to use sync mode or async mode.", () => SyncMode.Sync);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> AutoMode =
+        new("AutoMode", "Auto Mode: Automatically switches to async if the Unity-Resonite or Resonite-Unity ratio is greater than some threshold.", () => false);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<double> RatioThreshold =
+        new("RatioThreshold", "Ratio Threshold: The ratio to use when deciding whether to switch to async during auto mode.", () => 4.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<float> EMAExponent =
+        new("EMAExponent", "EMAExponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
 
     public enum SyncMode
     {
@@ -212,13 +250,18 @@ public static class FrooxEngineRunnerPatch
                                 Task.Delay(ticktime - engine_time);
                             }
 
+
                             RenderConnector.renderQueue.MarkAsCompleted();
-                            
-                            
+
+
+                            TimeSpan elapsed = DateTime.Now - Thundagun.resoniteStartTime;
+
+                            Thundagun.UpdateResoniteEMA(elapsed.TotalMilliseconds);
+
                             lock (Thundagun.lockObject)
                             {
 
-                                while (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync && !Thundagun.lockResoniteUnlockUnity)
+                                while (!Thundagun.UseAsync && !Thundagun.lockResoniteUnlockUnity)
                                 {
                                     Monitor.Wait(Thundagun.lockObject);
                                 }
@@ -227,24 +270,31 @@ public static class FrooxEngineRunnerPatch
 
                                 Monitor.Pulse(Thundagun.lockObject);
                             }
+                            Thundagun.resoniteStartTime = DateTime.Now;
                         }
 
 
                     });
 
                 }
-                
-                    lock (Thundagun.lockObject)
+
+                TimeSpan elapsed = DateTime.Now - Thundagun.unityStartTime;
+
+                Thundagun.UpdateUnityEMA(elapsed.TotalMilliseconds);
+
+                lock (Thundagun.lockObject)
+                {
+                    while (!Thundagun.UseAsync && Thundagun.lockResoniteUnlockUnity)
                     {
-                        while (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync && Thundagun.lockResoniteUnlockUnity)
-                        {
-                            Monitor.Wait(Thundagun.lockObject);
-                        }
-
-                        Thundagun.lockResoniteUnlockUnity = true;
-
-                        Monitor.Pulse(Thundagun.lockObject);
+                        Monitor.Wait(Thundagun.lockObject);
                     }
+
+                    Thundagun.lockResoniteUnlockUnity = true;
+
+                    Monitor.Pulse(Thundagun.lockObject);
+                }
+
+                Thundagun.unityStartTime = DateTime.Now;
 
 
 
