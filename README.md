@@ -30,20 +30,6 @@ Offers increased flexibility and responsiveness, especially beneficial for VR ap
 - **Batch Processing**: Updates are processed in batches, allowing Unity to safely redraw previous states.
 - **Enhanced Responsiveness**: Input handling, movement, and IK calculations are performed on Unity's side.
 
-## Technical Details
-
-### Pipelining and Thread Management
-
-- **Elimination of Idle Time**: Separate threads reduce CPU and GPU idle periods common in sequential update cycles.
-- **Synchronization Mechanism**: A flip-flop boolean lock coordinates threads in Sync mode.
-- **Batch Queuing**: Both modes use a batch queue for managing updates, facilitating consistent processing.
-
-### Input Handling and Movement
-
-- **Decoupled Input Processing**: Shifting input handling to Unity enhances responsiveness.
-- **Continuous Control**: Players maintain movement and camera control even during game logic stalls.
-- **State Forwarding**: Movement and IK results are forwarded to Resonite to align with the game state.
-
 ## Installation
 
 1. **Download**: Get the latest release of Thundagun.
