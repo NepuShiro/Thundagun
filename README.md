@@ -2,6 +2,8 @@
 
 **Thundagun** is a Resonite mod that decouples the game logic and rendering loops by running Resonite and Unity on separate threads. This enhancement improves throughput and reduces latency, offering smoother gameplay and enhanced responsiveness. Thundagun operates in two modes—**Sync** and **Async**—to accommodate different performance requirements and user preferences.
 
+**Warning: This mod is a prerelease. It may contain bugs and other issues. Crashes and missing/buggy visuals are possible but are generally uncommon. Use at your own risk.**
+
 ## Key Features
 
 - **Parallel Execution**: Maximizes CPU and GPU utilization by running Resonite and Unity on separate threads.
