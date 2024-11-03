@@ -64,7 +64,7 @@ public class Thundagun : ResoniteMod
         new("TickRate", "Tick Rate", () => 30);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<SyncMode> Mode =
-        new("SyncMode", "Sync Mode", () => SyncMode.Sync);
+        new("SyncMode", "Sync Mode", () => SyncMode.Async);
 
 
     public enum SyncMode
@@ -232,24 +232,24 @@ public static class FrooxEngineRunnerPatch
                             //Thundagun.UpdatePackets.Enqueue(new List<IUpdatePacket>(Thundagun.CurrentPackets)); //enqueue the list, since we are done adding to it, so it can be processed by rendering.
                             RenderConnector.renderQueue.MarkAsCompleted(); //mark the render queue as completed, which is used in async mode
                             
-                            if (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync)
+                            
+                            // Acquire an exclusive lock on the shared object to coordinate the FrooxEngine thread's access
+                            lock (Thundagun.lockObject)
                             {
-                                // Acquire an exclusive lock on the shared object to coordinate the FrooxEngine thread's access
-                                lock (Thundagun.lockObject)
+                                // Check if the FrooxEngine thread is allowed to proceed. If not, wait until Unity signals readiness
+                                // This loop handles spurious wakeups and ensures the FrooxEngine thread only continues when allowed
+
+
+                                while (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync && !Thundagun.lockResoniteUnlockUnity)
                                 {
-                                    // Check if the FrooxEngine thread is allowed to proceed. If not, wait until Unity signals readiness
-                                    // This loop handles spurious wakeups and ensures the FrooxEngine thread only continues when allowed
-                                    while (!Thundagun.lockResoniteUnlockUnity)
-                                    {
-                                        Monitor.Wait(Thundagun.lockObject); // Release the lock and put the FrooxEngine thread into a waiting state until Unity signals
-                                    }
-
-                                    // Change the lock state to indicate that FrooxEngine has locked and Unity is now allowed to run
-                                    Thundagun.lockResoniteUnlockUnity = false;
-
-                                    // Signal the Unity thread that FrooxEngine has completed its update and it can now proceed
-                                    Monitor.Pulse(Thundagun.lockObject);
+                                    Monitor.Wait(Thundagun.lockObject); // Release the lock and put the FrooxEngine thread into a waiting state until Unity signals
                                 }
+
+                                // Change the lock state to indicate that FrooxEngine has locked and Unity is now allowed to run
+                                Thundagun.lockResoniteUnlockUnity = false;
+
+                                // Signal the Unity thread that FrooxEngine has completed its update and it can now proceed
+                                Monitor.Pulse(Thundagun.lockObject);
                             }
                         }
 
@@ -257,14 +257,13 @@ public static class FrooxEngineRunnerPatch
                     });
 
                 }
-                if (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync)
-                {
+                
                     // Acquire an exclusive lock on the shared object to coordinate Unity's access and synchronization with FrooxEngine
                     lock (Thundagun.lockObject)
                     {
                         // Check if Unity needs to wait for FrooxEngine to complete its update. If so, put Unity into a waiting state
                         // This ensures that Unity only proceeds when signaled by FrooxEngine, maintaining proper synchronization
-                        while (Thundagun.lockResoniteUnlockUnity)
+                        while (Thundagun.Config.GetValue(Thundagun.Mode) == Thundagun.SyncMode.Sync && Thundagun.lockResoniteUnlockUnity)
                         {
                             Monitor.Wait(Thundagun.lockObject); // Unity waits until FrooxEngine signals it is ready
                         }
@@ -275,7 +274,6 @@ public static class FrooxEngineRunnerPatch
                         // Signal the FrooxEngine thread that Unity has completed its update and FrooxEngine can now proceed
                         Monitor.Pulse(Thundagun.lockObject);
                     }
-                }
 
 
                 //if (Thundagun.CurrentThread is not null) Thundagun.CurrentThread.Join();
