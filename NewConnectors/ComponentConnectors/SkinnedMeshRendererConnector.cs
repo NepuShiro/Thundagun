@@ -121,7 +121,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
     public List<ApproximateBoneBounds> ApproximateBounds;
     public SkinnedMeshRendererConnector Proxy;
     public UnityEngine.Bounds Bounds;
-    
+
     public bool BonesChanged;
     public bool BlendShapeWeightsChanged;
     public int? BoneCount;
@@ -130,15 +130,15 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
     public List<SlotConnector> Bones;
     public SlotConnector RootBone;
     public List<float> BlendShapeWeights;
-    
+
     public SkinnedMeshRendererConnector Skinned => Owner as SkinnedMeshRendererConnector;
-        
+
     public ApplyChangesSkinnedMeshRenderer(SkinnedMeshRendererConnector owner) : base(owner)
     {
         SkinnedBounds = owner.Owner.BoundsComputeMethod.Value;
         if (SkinnedBounds == SkinnedBounds.Static && owner.Owner.Slot.ActiveUserRoot == owner.Owner.LocalUserRoot)
             SkinnedBounds = SkinnedBounds.FastDisjointRootApproximate;
-        
+
         BoundsChanged = owner.Owner.ProxyBoundsSource.WasChanged || owner.Owner.ExplicitLocalBounds.WasChanged;
         owner.Owner.ProxyBoundsSource.WasChanged = false;
         owner.Owner.ExplicitLocalBounds.WasChanged = false;
@@ -163,7 +163,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
 
         BonesChanged = owner.Owner.BonesChanged;
         owner.Owner.BonesChanged = false;
-        
+
         BlendShapeCount = owner.Owner.Mesh?.Asset?.Data?.BlendShapeCount;
 
         if (BonesChanged || MeshWasChanged)
@@ -175,7 +175,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
 
         BlendShapeWeightsChanged = owner.Owner.BlendShapeWeightsChanged;
         owner.Owner.BlendShapeWeightsChanged = false;
-        
+
         if (BlendShapeWeightsChanged || MeshWasChanged)
         {
             BlendShapeWeights = new List<float>(owner.Owner.BlendShapeWeights);
@@ -234,7 +234,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
         {
             var boneCount = BoneCount;
             var blendShapeCount = BlendShapeCount;
-            var weightBonelessOverride = boneCount.GetValueOrDefault() == 0 && blendShapeCount.GetValueOrDefault() > 0;;
+            var weightBonelessOverride = boneCount.GetValueOrDefault() == 0 && blendShapeCount.GetValueOrDefault() > 0; ;
             if (weightBonelessOverride) boneCount = 1;
             Skinned.bones = Skinned.bones.EnsureExactSize(boneCount.GetValueOrDefault());
             if (Skinned.bones != null)

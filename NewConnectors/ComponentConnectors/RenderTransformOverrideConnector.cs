@@ -115,7 +115,7 @@ public class ApplyChangesRenderTransformOverrideConnector : UpdatePacket<RenderT
 
         SkinnecMeshes = owner.Owner.SkinnedMeshRenderers.Select(i => i.Connector as SkinnedMeshRendererConnector)
             .Where(i => i is not null).ToList();
-        
+
         TargetPosition = owner.Owner.PositionOverride.Value?.ToUnity();
         TargetRotation = owner.Owner.RotationOverride.Value?.ToUnity();
         TargetScale = owner.Owner.ScaleOverride.Value?.ToUnity();
@@ -130,13 +130,13 @@ public class ApplyChangesRenderTransformOverrideConnector : UpdatePacket<RenderT
             if (Context.HasValue) RenderHelper.RegisterRenderContextEvents(Context.Value, Owner.Handler);
             Owner.RegisteredContext = Context;
         }
-        
+
         foreach (var skinnedMeshRenderer in SkinnecMeshes) skinnedMeshRenderer.ForceRecalculationPerRender();
-        
+
         Owner.TargetPosition = TargetPosition;
         Owner.TargetRotation = TargetRotation;
         Owner.TargetScale = TargetScale;
-        
+
         if (Owner.IsOverriden)
             throw new InvalidOperationException("RenderTransform is overriden while being updated");
         if (Owner.RegisteredContext.HasValue && RenderHelper.CurrentRenderingContext == Owner.RegisteredContext) Owner.Override();

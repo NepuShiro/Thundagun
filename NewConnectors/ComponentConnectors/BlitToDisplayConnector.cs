@@ -51,7 +51,7 @@ public class ApplyChangesBlitToDisplayConnector : UpdatePacket<BlitToDisplayConn
     public Color Color;
     public bool FlipHorizontally;
     public bool FlipVertically;
-    
+
     public ApplyChangesBlitToDisplayConnector(BlitToDisplayConnector owner) : base(owner)
     {
         var target = owner.Owner.TargetUser.Target;

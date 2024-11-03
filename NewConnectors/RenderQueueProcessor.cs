@@ -11,7 +11,7 @@ public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
     private Queue<Batch> batchQueue = new(); // Queue to hold batches of render tasks
-    
+
     public void MarkAsCompleted()
     {
         lock (batchQueue)

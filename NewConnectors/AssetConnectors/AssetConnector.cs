@@ -16,7 +16,7 @@ public abstract class AssetConnector : IAssetConnector
     {
         Asset = asset;
         AssetManager = asset.AssetManager;
-        UnityAssetIntegrator = (UnityAssetIntegrator) AssetManager.Connector;
+        UnityAssetIntegrator = (UnityAssetIntegrator)AssetManager.Connector;
     }
 
     public abstract void Unload();
