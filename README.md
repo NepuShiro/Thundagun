@@ -41,7 +41,3 @@ Offers increased flexibility and responsiveness, especially beneficial for VR ap
 
 - **Issues**: Report bugs or request features via the repository's Issues section.
 - **Pull Requests**: Submit code contributions through Pull Requests.
-
-## Disclaimer
-
-**Note**: Thundagun is experimental and may not cover all edge cases. Users should test different configurations to find optimal settings for their systems.
