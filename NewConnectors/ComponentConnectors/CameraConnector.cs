@@ -149,21 +149,6 @@ public class ApplyChangesCameraConnector : UpdatePacket<CameraConnector>
             if (SetupPostProcessing) CameraInitializer.SetupPostProcessing(Owner.UnityCamera, settings);
             else CameraInitializer.RemovePostProcessing(Owner.UnityCamera);
         }
-        //if (base.Owner.Postprocessing != this.postprocessingSetup || base.Owner.ScreenSpaceReflections != this.screenspaceReflections || base.Owner.MotionBlur != this.motionBlur)
-        //{
-        //    this.UnityCamera.targetTexture = null;
-        //    this.postprocessingSetup = base.Owner.Postprocessing;
-        //    this.screenspaceReflections = base.Owner.ScreenSpaceReflections;
-        //    this.motionBlur = base.Owner.MotionBlur;
-        //    if (base.Owner.Postprocessing)
-        //    {
-        //        base.Owner.World.Render.Connector.SetupPostProcessing(base.Owner, this.motionBlur, this.screenspaceReflections);
-        //    }
-        //    else
-        //    {
-        //        base.Owner.World.Render.Connector.RemovePostProcessing(base.Owner);
-        //    }
-        //}
 
 
         Owner.RenderEx.Texture = Texture?.RenderTexture;

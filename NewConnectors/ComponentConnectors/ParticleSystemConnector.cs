@@ -41,7 +41,6 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
 {
     public bool ShouldBeEnabled;
 
-    //holy fuck
     public int MaxParticles;
     public SlotConnector Space;
     public bool SpaceIsRoot;

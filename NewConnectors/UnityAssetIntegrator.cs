@@ -43,7 +43,6 @@ public class UnityAssetIntegrator : IAssetManagerConnector
     {
         try
         {
-            //if (!IsDebugBuild) GarbageCollector.GCMode = GarbageCollector.Mode.Disabled;
             _instance.ProcessQueue2(MathX.Max(_instance._maxMilliseconds, 2.0), true);
         }
         catch (Exception ex)
@@ -52,7 +51,6 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         }
         finally
         {
-            //if (!IsDebugBuild) GarbageCollector.GCMode = GarbageCollector.Mode.Enabled;
         }
     }
     
@@ -125,7 +123,6 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 
     public int ProcessQueue1(double maxMilliseconds)
     {
-        //Thundagun.Msg("Processing asset queue");
         
 
         while (_taskQueue.TryDequeue(out var val))

@@ -10,7 +10,7 @@ namespace Thundagun.NewConnectors;
 public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
-    private Queue<Batch> batchQueue = new(); // Queue to hold batches of render tasks
+    private Queue<Batch> batchQueue = new(); 
     
     public void MarkAsCompleted()
     {
@@ -74,7 +74,6 @@ public class RenderQueueProcessor : MonoBehaviour
             }
             else
             {
-                // Process tasks individually if not using batching
                 while (batchQueue.Count > 0)
                 {
                     var batch = batchQueue.Peek();
@@ -92,7 +91,7 @@ public class RenderQueueProcessor : MonoBehaviour
                     }
                     if (batch.IsComplete)
                     {
-                        batchQueue.Dequeue(); // Remove the completed empty batch
+                        batchQueue.Dequeue(); 
                     }
                 }
             }

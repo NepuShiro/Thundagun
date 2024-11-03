@@ -10,7 +10,6 @@ public class WorldConnector : IWorldConnector
     
     public void Initialize(World owner)
     {
-        //Owner only gets used during Destroy so it doesn't matter if we set it here
         Owner = owner;
         Thundagun.QueuePacket(new InitializeWorldConnector(this));
     }

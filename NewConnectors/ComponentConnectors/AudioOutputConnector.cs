@@ -47,7 +47,8 @@ public class ApplyChangesAudioOutputConnector : UpdatePacket<AudioOutputConnecto
         ShouldBeEnabled = owner.Owner.ShouldBeEnabled;
         if (ShouldBeEnabled)
         {
-            //TODO: do we need to make audio targets async too? or are they thread safe?
+            
+        //TODO: do we need to make audio targets async too? or are they thread safe?
             Target = owner.Owner.Source.Target;
             ActualVolume = owner.Owner.ActualVolume;
             Priority = MathX.Clamp(owner.Owner.Priority.Value, 0, byte.MaxValue);
