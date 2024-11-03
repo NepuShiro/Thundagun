@@ -7,7 +7,7 @@ public class WorldConnector : IWorldConnector
 {
     public World Owner { get; set; }
     public GameObject WorldRoot { get; set; }
-    
+
     public void Initialize(World owner)
     {
         Owner = owner;

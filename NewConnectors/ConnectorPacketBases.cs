@@ -12,7 +12,7 @@ public class InitializeComponentConnector<TD, TC, T> : UpdatePacket<T>
     public SlotConnector Connector;
     public InitializeComponentConnector(T connector, TD component) : base(connector)
     {
-        Owner.SlotConnector = (SlotConnector) component.Slot.Connector;
+        Owner.SlotConnector = (SlotConnector)component.Slot.Connector;
     }
 
     public override void Update()
@@ -31,13 +31,13 @@ public class InitializeComponentConnectorSingle<TD, T> : InitializeComponentConn
 }
 
 public class InitializeUnityComponentConnector<TC, TU, T> : InitializeComponentConnectorSingle<TC, T>
-    where TC : ImplementableComponent 
+    where TC : ImplementableComponent
     where TU : MonoBehaviour, IConnectorBehaviour
     where T : UnityComponentConnector<TC, TU>
 {
     public InitializeUnityComponentConnector(T connector, TC component) : base(connector, component)
     {
-        
+
     }
 
     public override void Update()
@@ -80,11 +80,11 @@ public class DestroyComponentConnector<TD> : DestroyComponentConnector<TD, IConn
 }
 
 public class DestroyUnityComponentConnector<TC, TU> : DestroyComponentConnector<TC>
-    where TC : ImplementableComponent 
+    where TC : ImplementableComponent
     where TU : MonoBehaviour, IConnectorBehaviour
 {
     public UnityComponentConnector<TC, TU> OwnerConnector => Owner as UnityComponentConnector<TC, TU>;
-    
+
     public DestroyUnityComponentConnector(UnityComponentConnector<TC, TU> connector, TC component, bool destroyingWorld) :
         base(connector, component, destroyingWorld)
     {

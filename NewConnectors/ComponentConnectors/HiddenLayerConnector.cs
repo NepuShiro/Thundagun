@@ -31,5 +31,5 @@ public class ApplyChangesHiddenLayerConnector : UpdatePacket<HiddenLayerConnecto
         owner.SlotConnector.Owner?.MarkChangeDirty();
     }
 
-    public override void Update() => Owner.SlotConnector.ForceLayer = Enabled ? (byte) LayerMask.NameToLayer("Hidden") : (byte) 0;
+    public override void Update() => Owner.SlotConnector.ForceLayer = Enabled ? (byte)LayerMask.NameToLayer("Hidden") : (byte)0;
 }

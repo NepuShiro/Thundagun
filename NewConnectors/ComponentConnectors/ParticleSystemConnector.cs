@@ -171,7 +171,7 @@ public class ApplyChangesParticleSystemConnector : UpdatePacket<ParticleSystemCo
                     TrailSizeAffectsLifetime = ParticleStyle.ParticleSizeAffectsTrailLifetime.Value;
                     TrailInheritParticleColor = ParticleStyle.InheritTrailColorFromParticle.Value;
                     TrailGenerateLightingData = ParticleStyle.GenerateLightingDataForTrails.Value;
-                    TrailTextureMode = (ParticleSystemTrailTextureMode) ParticleStyle.TrailTextureMode.Value;
+                    TrailTextureMode = (ParticleSystemTrailTextureMode)ParticleStyle.TrailTextureMode.Value;
                     TrailLifetime = new UnityEngine.ParticleSystem.MinMaxCurve(ParticleStyle.MinTrailLifetime.Value,
                         ParticleStyle.MaxTrailLifetime.Value);
                     TrailColorOverLifetime =

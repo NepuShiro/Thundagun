@@ -10,8 +10,9 @@ namespace Thundagun.NewConnectors;
 public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
+
     private Queue<Batch> batchQueue = new(); 
-    
+
     public void MarkAsCompleted()
     {
         lock (batchQueue)

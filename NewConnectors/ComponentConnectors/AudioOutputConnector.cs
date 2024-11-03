@@ -11,7 +11,7 @@ public class AudioOutputConnector : ComponentConnectorSingle<AudioOutput>
     public AudioOutputBehavior _outputBehavior;
 
     public AudioSource UnityAudioSource => _outputBehavior?._unityAudio;
-    
+
     public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesAudioOutputConnector(this));
 
     public override void DestroyMethod(bool destroyingWorld)
@@ -41,7 +41,7 @@ public class ApplyChangesAudioOutputConnector : UpdatePacket<AudioOutputConnecto
     public float MaxDistance;
     public bool IgnoreReverbZones;
     public AudioRolloffMode RolloffMode;
-    
+
     public ApplyChangesAudioOutputConnector(AudioOutputConnector owner) : base(owner)
     {
         ShouldBeEnabled = owner.Owner.ShouldBeEnabled;
@@ -93,7 +93,7 @@ public class ApplyChangesAudioOutputConnector : UpdatePacket<AudioOutputConnecto
                 }
             }
             if (unityAudio.dopplerLevel != DopplerLevel) unityAudio.dopplerLevel = DopplerLevel;
-            
+
             var minDistance = MathX.Clamp(MinDistance, 0.0f, 1000000f);
             var maxDistance = MathX.Clamp(MaxDistance, 0.0f, 1100000f);
             if (unityAudio.bypassReverbZones != IgnoreReverbZones) unityAudio.bypassReverbZones = IgnoreReverbZones;

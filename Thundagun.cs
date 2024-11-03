@@ -68,17 +68,17 @@ public class Thundagun : ResoniteMod
 
     public static readonly object lockObject = new();
 
-    public static void QueuePacket(IUpdatePacket packet) {
-
+    public static void QueuePacket(IUpdatePacket packet)
+    {
         lock (CurrentPackets)
         {
             CurrentPackets.Enqueue(packet);
         }
-        
-    } 
-    
+
+    }
+
     internal static ModConfiguration Config;
-    
+
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false);
@@ -113,13 +113,13 @@ public class Thundagun : ResoniteMod
 
         var workerInitializerMethod = typeof(WorkerInitializer)
             .GetMethods(AccessTools.all)
-            .First(i => i.Name.Contains("Initialize") && i.GetParameters().Length == 1 && 
+            .First(i => i.Name.Contains("Initialize") && i.GetParameters().Length == 1 &&
                         i.GetParameters()[0].ParameterType == typeof(Type));
         var workerInitializerPatch =
             typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize));
 
         harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch));
-        
+
         harmony.PatchAll();
     }
 
@@ -170,10 +170,10 @@ public class Thundagun : ResoniteMod
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
 
         var initInfosField = typeof(WorkerInitializer).GetField("initInfos", AccessTools.all);
-        var initInfos = (ConcurrentDictionary<Type, WorkerInitInfo>) initInfosField?.GetValue(null);
-            
+        var initInfos = (ConcurrentDictionary<Type, WorkerInitInfo>)initInfosField?.GetValue(null);
+
         Msg($"Attempting to patch component types");
-        
+
         foreach (var t in initInfos.Keys)
         {
             Msg($"Attempting " + t.Name);
@@ -203,8 +203,8 @@ public static class FrooxEngineRunnerPatch
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
 
-    public static bool Update(FrooxEngineRunner __instance, 
-        ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld, 
+    public static bool Update(FrooxEngineRunner __instance,
+        ref Engine ____frooxEngine, ref bool ____shutdownRequest, ref Stopwatch ____externalUpdate, ref World ____lastFocusedWorld,
         ref HeadOutput ____vrOutput, ref HeadOutput ____screenOutput, ref AudioListener ____audioListener, ref List<World> ____worlds)
     {
         shutdown = ____shutdownRequest;
@@ -221,15 +221,15 @@ public static class FrooxEngineRunnerPatch
             {
                 UpdateFrameRate(__instance);
                 DateTime starttime = DateTime.Now;
-                
-                
+
+
                 var engine = ____frooxEngine;
                 if (Thundagun.CurrentTask is null)
                 {
                     Thundagun.CurrentTask = Task.Run(() =>
                     {
 
-                        while (!shutdown) 
+                        while (!shutdown)
                         {
                             int total = 0;
                             lock (assets_processed)
@@ -244,7 +244,7 @@ public static class FrooxEngineRunnerPatch
                             engine.AssetsUpdated(total); 
                             engine.RunUpdateLoop(); 
                             TimeSpan engine_time = (DateTime.Now - beforeEngine);
-                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.DebugLoggingTickRate))+1));
+                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.DebugLoggingTickRate)) + 1));
                             if (engine_time < ticktime)
                             {
                                 Task.Delay(ticktime - engine_time);
@@ -252,7 +252,6 @@ public static class FrooxEngineRunnerPatch
 
 
                             RenderConnector.renderQueue.MarkAsCompleted();
-
 
                             TimeSpan elapsed = DateTime.Now - Thundagun.resoniteStartTime;
 
@@ -307,7 +306,7 @@ public static class FrooxEngineRunnerPatch
 
 
                 engine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
-                
+
                 var boilerplateTime = DateTime.Now;
                 List<IUpdatePacket> updates;
                 lock (Thundagun.CurrentPackets)
@@ -323,14 +322,14 @@ public static class FrooxEngineRunnerPatch
                     {
                         assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
                     }
-                    
+
                 }
-                
+
                 var assetTime = DateTime.Now;
 
-                
 
-                
+
+
 
 
 
@@ -347,10 +346,10 @@ public static class FrooxEngineRunnerPatch
                         Thundagun.Msg(e);
                     }
                 }
-                
 
-                
-                
+
+
+
                 var updateTime = DateTime.Now;
 
                 if (focusedWorld != lastFocused)
@@ -367,9 +366,9 @@ public static class FrooxEngineRunnerPatch
 
 
 
-                if (Thundagun.Config.GetValue(Thundagun.DebugLogging)) 
+                if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
-                    Thundagun.Msg($"LastRender vs now: {(lastrender- starttime).TotalSeconds}");
+                    Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
                     Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
                 }
                 lastrender = DateTime.Now;
@@ -397,7 +396,7 @@ public static class FrooxEngineRunnerPatch
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateFrameRate")]
     public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub");
-    
+
     private static void UpdateHeadOutput(World focusedWorld, Engine engine, HeadOutput VR, HeadOutput screen, AudioListener listener, ref List<World> worlds)
     {
         if (focusedWorld == null) return;
@@ -426,19 +425,19 @@ public static class FrooxEngineRunnerPatch
         foreach (var world in worlds)
         {
             if (world.Focus != World.WorldFocus.Overlay && world.Focus != World.WorldFocus.PrivateOverlay) continue;
-            var transform2 = ((WorldConnector) world.Connector).WorldRoot.transform;
+            var transform2 = ((WorldConnector)world.Connector).WorldRoot.transform;
             var userGlobalPosition = world.LocalUserGlobalPosition;
             var userGlobalRotation = world.LocalUserGlobalRotation;
 
             var t = transform2.transform;
-            
+
             t.position = transform1.position - userGlobalPosition.ToUnity();
             t.rotation = transform1.rotation * userGlobalRotation.ToUnity();
             t.localScale = transform1.localScale;
         }
         worlds.Clear();
     }
-    
+
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");
@@ -507,7 +506,7 @@ public static class WorkerInitializerPatch
     public static void Initialize(Type workerType, WorkerInitInfo __result)
     {
         if (!workerType.GetInterfaces().Contains(typeof(IImplementable))) return;
-        
+
         //TODO: make this static
         //get all connector types from this mod
         var types = typeof(Thundagun)
@@ -515,11 +514,11 @@ public static class WorkerInitializerPatch
             .GetTypes()
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector)))
             .ToList();
-        
+
         var connectorType = typeof(IConnector<>)
             .MakeGenericType(workerType.IsGenericType ? workerType.GetGenericTypeDefinition() : workerType);
         var array = types.Where(j => j.GetInterfaces().Any(i => i == connectorType)).ToArray();
-        
+
         if (array.Length == 1)
         {
             __result.connectorType = array[0];

@@ -35,10 +35,10 @@ public class UnityAssetIntegrator : IAssetManagerConnector
     public static bool IsEditor { get; private set; }
 
     public static bool IsDebugBuild { get; private set; }
-    
+
     public bool RenderThreadProcessingEnabled { get; private set; }
-    
-    [MonoPInvokeCallback(typeof (RenderEventDelegate))]
+
+    [MonoPInvokeCallback(typeof(RenderEventDelegate))]
     private static void RenderThreadCallback()
     {
         try
@@ -53,7 +53,7 @@ public class UnityAssetIntegrator : IAssetManagerConnector
         {
         }
     }
-    
+
 
     public async Task Initialize(AssetManager owner)
     {
@@ -71,13 +71,13 @@ public class UnityAssetIntegrator : IAssetManagerConnector
             switch (GraphicsDeviceType)
             {
                 case GraphicsDeviceType.Direct3D11:
-                {
-                    var texture2D = new UnityEngine.Texture2D(4, 4);
-                    _dx11device = new SharpDX.Direct3D11.Texture2D(texture2D.GetNativeTexturePtr()).Device;
-                    if (texture2D) UnityEngine.Object.Destroy(texture2D);
-                    RenderThreadProcessingEnabled = true;
-                    break;
-                }
+                    {
+                        var texture2D = new UnityEngine.Texture2D(4, 4);
+                        _dx11device = new SharpDX.Direct3D11.Texture2D(texture2D.GetNativeTexturePtr()).Device;
+                        if (texture2D) UnityEngine.Object.Destroy(texture2D);
+                        RenderThreadProcessingEnabled = true;
+                        break;
+                    }
                 case GraphicsDeviceType.OpenGLES2:
                 case GraphicsDeviceType.OpenGLES3:
                 case GraphicsDeviceType.OpenGLCore:
@@ -123,7 +123,6 @@ public class UnityAssetIntegrator : IAssetManagerConnector
 
     public int ProcessQueue1(double maxMilliseconds)
     {
-        
 
         while (_taskQueue.TryDequeue(out var val))
         {
@@ -167,9 +166,9 @@ public class UnityAssetIntegrator : IAssetManagerConnector
                 else hasQueue = renderThreadQueue.TryPeek(out val);
 
                 if (!(hasPriorityQueue || hasQueue)) break;
-                
+
                 num++;
-                
+
                 var actionDone = false;
                 if (val.Action != null)
                 {

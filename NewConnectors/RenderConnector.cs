@@ -17,13 +17,13 @@ public class RenderConnector : IRenderConnector
     public static RenderQueueProcessor renderQueue;
     public static int _privateLayerMask;
     public static int _hiddenLayerMask;
-    
+
     public void Initialize(RenderManager manager)
     {
         Thundagun.QueuePacket(new InitializeRenderConnector(this));
     }
 
-    public static GameObject GetGameObject(Slot slot) => ((SlotConnector) slot.Connector).GeneratedGameObject;
+    public static GameObject GetGameObject(Slot slot) => ((SlotConnector)slot.Connector).GeneratedGameObject;
 
     public Task<byte[]> Render(FrooxEngine.RenderSettings renderSettings) => renderQueue.Enqueue(renderSettings);
 
@@ -35,8 +35,8 @@ public class RenderConnector : IRenderConnector
             RenderTextureFormat.ARGB32);
         var active = UnityEngine.RenderTexture.active;
         var dictionary = Pool.BorrowDictionary<GameObject, int>();
-        var list1 = (List<GameObject>) null;
-        var list2 = (List<GameObject>) null;
+        var list1 = (List<GameObject>)null;
+        var list2 = (List<GameObject>)null;
         var layer = LayerMask.NameToLayer("Temp");
         var num = 1 << layer;
         if (renderSettings.excludeObjects != null && renderSettings.excludeObjects.Count > 0)
@@ -143,7 +143,7 @@ public class RenderConnector : IRenderConnector
         settings.ScreenSpaceReflection = screenspaceReflections;
         CameraInitializer.SetupPostProcessing(camera.ToUnity(), settings);
     }
-        
+
 
     public void RemovePostProcessing(FrooxEngine.Camera camera) =>
         CameraInitializer.RemovePostProcessing(camera.ToUnity());
