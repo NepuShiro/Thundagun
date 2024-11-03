@@ -38,23 +38,23 @@ public class MaterialPropertyBlockConnector : MaterialConnectorBase, IMaterialPr
                 UnityBlock.SetVector(action.propertyIndex, action.float4Value.ToUnity());
                 break;
             case ActionType.FloatArray:
-                UnityBlock.SetFloatArray(action.propertyIndex, (List<float>) action.obj);
+                UnityBlock.SetFloatArray(action.propertyIndex, (List<float>)action.obj);
                 break;
             case ActionType.Float4Array:
-            {
-                var list = GetUnityVectorArray(ref action);
-                UnityBlock.SetVectorArray(action.propertyIndex, list);
-                Pool.Return(ref list);
-                break;
-            }
+                {
+                    var list = GetUnityVectorArray(ref action);
+                    UnityBlock.SetVectorArray(action.propertyIndex, list);
+                    Pool.Return(ref list);
+                    break;
+                }
             case ActionType.Matrix:
-            {
-                var unityBlock = UnityBlock;
-                var propertyIndex = action.propertyIndex;
-                var m = GetMatrix(ref action);
-                unityBlock.SetMatrix(propertyIndex, m.ToUnity());
-                break;
-            }
+                {
+                    var unityBlock = UnityBlock;
+                    var propertyIndex = action.propertyIndex;
+                    var m = GetMatrix(ref action);
+                    unityBlock.SetMatrix(propertyIndex, m.ToUnity());
+                    break;
+                }
             case ActionType.Texture:
                 UnityBlock.SetTexture(action.propertyIndex,
                     (action.obj as ITexture)?.GetUnity() ?? UnityEngine.Texture2D.whiteTexture);

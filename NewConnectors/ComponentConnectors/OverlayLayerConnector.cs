@@ -11,7 +11,7 @@ public class OverlayLayerConnector : ComponentConnectorSingle<OverlayLayer>
     public override IUpdatePacket InitializePacket() => new InitializeOverlayLayerConnector(this, Owner);
 
     public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesOverlayLayerConnector(this));
-    
+
     public override void Destroy(bool destroyingWorld)
     {
         if (!destroyingWorld)
@@ -50,5 +50,5 @@ public class ApplyChangesOverlayLayerConnector : UpdatePacket<OverlayLayerConnec
         Enabled = owner.Owner.Enabled;
         owner.SlotConnector.Owner?.MarkChangeDirty();
     }
-    public override void Update() => Owner.SlotConnector.ForceLayer = Enabled ? (byte) LayerMask.NameToLayer("Overlay") : (byte) 0;
+    public override void Update() => Owner.SlotConnector.ForceLayer = Enabled ? (byte)LayerMask.NameToLayer("Overlay") : (byte)0;
 }

@@ -6,7 +6,7 @@ using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors.AssetConnectors;
 
-public class DesktopTextureConnector : 
+public class DesktopTextureConnector :
     AssetConnector,
     IDesktopTextureConnector,
     IUnityTextureProvider

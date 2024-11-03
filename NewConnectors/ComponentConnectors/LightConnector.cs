@@ -56,7 +56,7 @@ public class ApplyChangesLightConnector : UpdatePacket<LightConnector>
     public float ShadowBias;
     public float ShadowNormalBias;
     public IUnityTextureProvider Cookie;
-    
+
     public ApplyChangesLightConnector(LightConnector owner) : base(owner)
     {
         Type = owner.Owner.LightType.Value switch
@@ -81,7 +81,7 @@ public class ApplyChangesLightConnector : UpdatePacket<LightConnector>
         Range = MathX.FilterInvalid(owner.Owner.Range.Value * ((globalScale.x + globalScale.y + globalScale.z) / 3.0f));
         SpotAngle = MathX.Clamp(MathX.FilterInvalid(owner.Owner.SpotAngle.Value), 0.0f, 180f);
         ShadowStrength = MathX.Clamp01(MathX.FilterInvalid(owner.Owner.ShadowStrength.Value));
-        ShadowNearPlane = MathX.Max(1f / 1000f, MathX.FilterInvalid((float) owner.Owner.ShadowNearPlane));
+        ShadowNearPlane = MathX.Max(1f / 1000f, MathX.FilterInvalid((float)owner.Owner.ShadowNearPlane));
         ShadowCustomResolution = owner.Owner.ShadowMapResolution.Value;
         ShadowBias = owner.Owner.ShadowBias.Value;
         ShadowNormalBias = owner.Owner.ShadowNormalBias.Value;

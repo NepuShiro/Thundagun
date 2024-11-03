@@ -70,23 +70,23 @@ public class MaterialConnector : MaterialConnectorBase, IMaterialConnector
         switch (action.type)
         {
             case ActionType.Flag:
-                UnityMaterial.SetKeyword((string) action.obj, action.float4Value.x > 0f);
+                UnityMaterial.SetKeyword((string)action.obj, action.float4Value.x > 0f);
                 break;
             case ActionType.Instancing:
                 UnityMaterial.enableInstancing = action.float4Value.x > 0f;
                 break;
             case ActionType.RenderQueue:
-                UnityMaterial.renderQueue = (int) action.float4Value.x;
+                UnityMaterial.renderQueue = (int)action.float4Value.x;
                 break;
             case ActionType.Tag:
-            {
-                var propertyIndex2 = (MaterialTag) action.propertyIndex;
-                if (propertyIndex2 != MaterialTag.RenderType)
-                    throw new ArgumentException("Unknown material tag: " + propertyIndex2);
-                UnityMaterial.SetOverrideTag("RenderType", action.obj as string);
-                break;
+                {
+                    var propertyIndex2 = (MaterialTag)action.propertyIndex;
+                    if (propertyIndex2 != MaterialTag.RenderType)
+                        throw new ArgumentException("Unknown material tag: " + propertyIndex2);
+                    UnityMaterial.SetOverrideTag("RenderType", action.obj as string);
+                    break;
 
-            }
+                }
             case ActionType.Float:
                 UnityMaterial.SetFloat(action.propertyIndex, action.float4Value.x);
                 break;
@@ -94,23 +94,23 @@ public class MaterialConnector : MaterialConnectorBase, IMaterialConnector
                 UnityMaterial.SetVector(action.propertyIndex, action.float4Value.ToUnity());
                 break;
             case ActionType.FloatArray:
-                UnityMaterial.SetFloatArray(action.propertyIndex, (List<float>) action.obj);
+                UnityMaterial.SetFloatArray(action.propertyIndex, (List<float>)action.obj);
                 break;
             case ActionType.Float4Array:
-            {
-                var list = GetUnityVectorArray(ref action);
-                UnityMaterial.SetVectorArray(action.propertyIndex, list);
-                Pool.Return(ref list);
-                break;
-            }
+                {
+                    var list = GetUnityVectorArray(ref action);
+                    UnityMaterial.SetVectorArray(action.propertyIndex, list);
+                    Pool.Return(ref list);
+                    break;
+                }
             case ActionType.Matrix:
-            {
-                var unityMaterial = UnityMaterial;
-                var propertyIndex = action.propertyIndex;
-                var m = GetMatrix(ref action);
-                unityMaterial.SetMatrix(propertyIndex, m.ToUnity());
-                break;
-            }
+                {
+                    var unityMaterial = UnityMaterial;
+                    var propertyIndex = action.propertyIndex;
+                    var m = GetMatrix(ref action);
+                    unityMaterial.SetMatrix(propertyIndex, m.ToUnity());
+                    break;
+                }
             case ActionType.Texture:
                 UnityMaterial.SetTexture(action.propertyIndex, (action.obj as ITexture)?.GetUnity());
                 break;

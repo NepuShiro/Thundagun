@@ -11,7 +11,7 @@ namespace Thundagun.NewConnectors.AssetConnectors;
 public class VideoTextureConnector : AssetConnector, IVideoTextureConnector, IUnityTextureProvider
 {
     //TODO: implement this after the vlc update, there's no point in doing this right now when it's going to get nuked soon
-    
+
     public override void Unload() { }
     public void LoadLocal(string path, string forceEngine, string mime, AssetIntegrated onReady, Action onTextureUpdated) { }
     public void LoadStream(string uri, string forceEngine, string mime, AssetIntegrated onReady, Action onTextureUpdated) { }

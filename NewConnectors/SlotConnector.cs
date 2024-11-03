@@ -19,7 +19,7 @@ namespace Thundagun.NewConnectors
 
         public static IConnector<Slot> Constructor() => new SlotConnector();
 
-        public WorldConnector WorldConnector => (WorldConnector) World.Connector;
+        public WorldConnector WorldConnector => (WorldConnector)World.Connector;
 
         public GameObject GeneratedGameObject { get; private set; }
 
@@ -98,7 +98,7 @@ namespace Thundagun.NewConnectors
             transform.localRotation = Rotation;
             transform.localScale = Scale;
         }
-        
+
         public override void Destroy(bool destroyingWorld) =>
             Thundagun.QueuePacket(new DestroySlotConnector(this, destroyingWorld));
     }
@@ -115,7 +115,7 @@ namespace Thundagun.NewConnectors
         public Quaternion Rotation;
         public bool ScaleChanged;
         public Vector3 Scale;
-        
+
         public ApplyChangesSlotConnector(SlotConnector owner, bool forceReparent) : base(owner)
         {
             var o = owner.Owner;
@@ -135,7 +135,7 @@ namespace Thundagun.NewConnectors
             ScaleChanged = o.Scale_Field.GetWasChangedAndClear();
             Scale = o.Scale_Field.Value.ToUnity();
         }
-            
+
         public ApplyChangesSlotConnector(SlotConnector owner) : base(owner)
         {
             var o = owner.Owner;
@@ -162,11 +162,11 @@ namespace Thundagun.NewConnectors
             Owner.Position = Position;
             Owner.Rotation = Rotation;
             Owner.Scale = Scale;
-            
+
             var generatedGameObject = Owner.GeneratedGameObject;
             if (!(generatedGameObject != null))
                 return;
-            
+
             if (Reparent)
             {
                 Owner.ParentConnector?.FreeGameObject();
@@ -179,7 +179,7 @@ namespace Thundagun.NewConnectors
                 else gameObject = Owner.WorldConnector.WorldRoot;
                 Owner.Transform.SetParent(gameObject.transform, false);
             }
-            
+
             Owner.UpdateLayer();
             Owner.SetData();
         }
