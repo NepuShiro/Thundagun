@@ -57,11 +57,11 @@ public class Thundagun : ResoniteMod
     internal static ModConfiguration Config;
     
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<bool> OutputDebug =
-        new("OutputDebug", "Output Debug", () => true);
+    internal readonly static ModConfigurationKey<bool> DebugLogging =
+        new("DebugLogging", "Debug Logging", () => true);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> TickRate =
-        new("TickRate", "Tick Rate", () => 30);
+    internal readonly static ModConfigurationKey<float> DebugLoggingTickRate =
+        new("DebugLoggingTickRate", "Debug Logging Tick Rate", () => 30);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<SyncMode> Mode =
         new("SyncMode", "Sync Mode", () => SyncMode.Sync);
@@ -222,7 +222,7 @@ public static class FrooxEngineRunnerPatch
                             engine.AssetsUpdated(total); //inform engine we updated the assets from the render queue.
                             engine.RunUpdateLoop(); // generate our next engine update, adding packets to our list.
                             TimeSpan engine_time = (DateTime.Now - beforeEngine);
-                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.TickRate))+1));
+                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.DebugLoggingTickRate))+1));
                             if (engine_time < ticktime)
                             {
                                 Task.Delay(ticktime - engine_time);
@@ -378,7 +378,7 @@ public static class FrooxEngineRunnerPatch
 
 
 
-                if (Thundagun.Config.GetValue(Thundagun.OutputDebug)) 
+                if (Thundagun.Config.GetValue(Thundagun.DebugLogging)) 
                 {
                     Thundagun.Msg($"LastRender vs now: {(lastrender- starttime).TotalSeconds}");
                     Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
