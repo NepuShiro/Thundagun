@@ -43,7 +43,7 @@ An even more experimental mode for technical users. Dynamically switches between
 
 1. **Download**: Get the latest release of Thundagun.
 2. **Install**: Place the mod files into your Resonite mod directory.
-3. **Configure**: Select your preferred mode (Sync or Async) via the mod's settings.
+3. **Configure**: Customize the behavior via the mod's settings.
 4. **Launch**: Start Resonite to apply the Thundagun patch.
 
 ## Contributions and Support
