@@ -64,7 +64,7 @@ public class Thundagun : ResoniteMod
         new("TickRate", "Tick Rate", () => 30);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<SyncMode> Mode =
-        new("SyncMode", "Sync Mode", () => SyncMode.Async);
+        new("SyncMode", "Sync Mode", () => SyncMode.Sync);
 
 
     public enum SyncMode
