@@ -41,13 +41,13 @@ public class TextureConnector :
     private AssetIntegrated _onPropertiesSet;
     private int _lastLoadedMip;
     private bool _texturePropertiesDirty;
-    
+
 
     public UnityEngine.Texture2D UnityTexture2D => _unityTexture2D;
 
     public UnityEngine.Cubemap UnityCubemap => _unityCubemap;
 
-    Texture IUnityTextureProvider.UnityTexture => (Texture) UnityTexture2D ?? UnityCubemap;
+    Texture IUnityTextureProvider.UnityTexture => (Texture)UnityTexture2D ?? UnityCubemap;
 
     public void SetTexture2DFormat(
         int width,
@@ -137,7 +137,7 @@ public class TextureConnector :
             this._unityTexture3D = new UnityEngine.Texture3D(format.Width, format.Height, format.Depth, graphicsFormat, TextureCreationFlags.None);
             environmentInstanceChanged = true;
         }
-        IL_199:
+    IL_199:
         this.AssignTextureProperties();
         format.OnDone(environmentInstanceChanged);
     }
@@ -154,13 +154,13 @@ public class TextureConnector :
             case GraphicsDeviceType.Direct3D11:
                 UnityAssetIntegrator.EnqueueRenderThreadProcessing(SetTextureFormatDX11Native(format));
                 break;
-            /*
-            case GraphicsDeviceType.OpenGLES2:
-            case GraphicsDeviceType.OpenGLES3:
-            case GraphicsDeviceType.OpenGLCore:
-                UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.SetTextureFormatOpenGLNative(format));
-                return;
-                */
+                /*
+                case GraphicsDeviceType.OpenGLES2:
+                case GraphicsDeviceType.OpenGLES3:
+                case GraphicsDeviceType.OpenGLCore:
+                    UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.SetTextureFormatOpenGLNative(format));
+                    return;
+                    */
         }
     }
 
@@ -185,8 +185,9 @@ public class TextureConnector :
 
     private void SetTextureData(TextureUploadData data)
     {
-        if (data.Bitmap3D != null) {
-			UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => UploadTextureDataUnity(data));
+        if (data.Bitmap3D != null)
+        {
+            UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => UploadTextureDataUnity(data));
             return;
         }
         switch (UnityAssetIntegrator.GraphicsDeviceType)
@@ -202,21 +203,21 @@ public class TextureConnector :
 
                 UnityAssetIntegrator.EnqueueRenderThreadProcessing(UploadTextureDataDX11Native(data));
                 return;
-            /*
-            case GraphicsDeviceType.OpenGLES2:
-            case GraphicsDeviceType.OpenGLES3:
-            case GraphicsDeviceType.OpenGLCore:
-            {
-                Helper.OpenGL_TextureFormat openGL_TextureFormat = data.Format.ToOpenGL(data.Bitmap.Profile, base.Engine.SystemInfo);
-                if (openGL_TextureFormat.sourceFormat != data.Format)
+                /*
+                case GraphicsDeviceType.OpenGLES2:
+                case GraphicsDeviceType.OpenGLES3:
+                case GraphicsDeviceType.OpenGLCore:
                 {
-                    UniLog.Warning($"Converting texture format from {data.Format} to {openGL_TextureFormat}. Texture: {data.Bitmap}. Asset: {Asset}");
-                    data.ConvertTo(openGL_TextureFormat.sourceFormat);
+                    Helper.OpenGL_TextureFormat openGL_TextureFormat = data.Format.ToOpenGL(data.Bitmap.Profile, base.Engine.SystemInfo);
+                    if (openGL_TextureFormat.sourceFormat != data.Format)
+                    {
+                        UniLog.Warning($"Converting texture format from {data.Format} to {openGL_TextureFormat}. Texture: {data.Bitmap}. Asset: {Asset}");
+                        data.ConvertTo(openGL_TextureFormat.sourceFormat);
+                    }
+                    base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(UploadTextureDataOpenGLNative(data));
+                    return;
                 }
-                base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(UploadTextureDataOpenGLNative(data));
-                return;
-            }
-            */
+                */
         }
     }
 
@@ -581,7 +582,7 @@ public class TextureConnector :
                     rowGranularity3 -= rowGranularity3 % 4;
                     rowGranularity3 = MathX.Max(4, rowGranularity3);
                     var row = 0;
-                    var rowPitch = (int) (MathX.BitsToBytes(mipSize.x * bitsPerPixel) * blockSize.y);
+                    var rowPitch = (int)(MathX.BitsToBytes(mipSize.x * bitsPerPixel) * blockSize.y);
                     while (row < height)
                     {
                         if (row > 0) yield return null;
@@ -600,7 +601,7 @@ public class TextureConnector :
                             num = levelSize.y - num - 1;
                         }
 
-                        var num2 = (int) MathX.BitsToBytes(data.PixelStart(startX, num, mip, face) * bitsPerPixel);
+                        var num2 = (int)MathX.BitsToBytes(data.PixelStart(startX, num, mip, face) * bitsPerPixel);
                         UnityAssetIntegrator._dx11device.ImmediateContext.UpdateSubresource(ref bitmap.RawData[num2],
                             _dx11Tex, targetMip + face * totalMipMaps, rowPitch, 0, resourceRegion);
                         row += rowGranularity3;

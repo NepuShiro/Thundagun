@@ -22,7 +22,7 @@ public class CubemapConnector : AssetConnector, IUnityTextureProvider
             var length = data.MipmapTotalPixels(mip) / 6;
             for (var index1 = 0; index1 < 6; ++index1)
             {
-                var num = data.PixelStart(0, 0, (BitmapCube.Face) index1, mip);
+                var num = data.PixelStart(0, 0, (BitmapCube.Face)index1, mip);
                 var colorArray = new Color[length];
                 for (var index2 = 0; index2 < length; ++index2)
                     colorArray[index2] = data.DecodePixel(num + index2).ToUnity();
@@ -69,7 +69,7 @@ public class CubemapConnector : AssetConnector, IUnityTextureProvider
         {
             for (var f = 0; f < 6; ++f)
             {
-                var face = (BitmapCube.Face) f;
+                var face = (BitmapCube.Face)f;
                 cubemapConnector.UnityCubemap.SetPixels(colors[dataIndex++], face.ToUnity(), mip);
                 yield return null;
             }

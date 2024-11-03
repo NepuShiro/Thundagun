@@ -25,7 +25,7 @@ public abstract class ComponentConnector<TD, TC> : Connector<TD>
     }
 }
 
-public abstract class ComponentConnectorSingle<TD> : ComponentConnector<TD, IConnector> 
+public abstract class ComponentConnectorSingle<TD> : ComponentConnector<TD, IConnector>
     where TD : ImplementableComponent<IConnector>
 {
     public override IUpdatePacket InitializePacket() =>
@@ -40,7 +40,7 @@ public abstract class UnityComponentConnector<TC, TU> : ComponentConnectorSingle
 {
     public TU UnityComponent { get; set; }
 
-    public override IUpdatePacket InitializePacket() => 
+    public override IUpdatePacket InitializePacket() =>
         new InitializeUnityComponentConnector<TC, TU, UnityComponentConnector<TC, TU>>(this, Owner);
 
     public override IUpdatePacket DestroyPacket(bool destroyingWorld) =>

@@ -88,8 +88,8 @@ public class CameraRenderEx : MonoBehaviour
             if (Camera.rect != new UnityEngine.Rect(0.0f, 0.0f, 1f, 1f))
             {
                 var rect = Camera.rect;
-                descriptor.height = (int) (rect.height * descriptor.height);
-                descriptor.width = (int) (rect.width * descriptor.width);
+                descriptor.height = (int)(rect.height * descriptor.height);
+                descriptor.width = (int)(rect.width * descriptor.width);
                 _prevRect = rect;
                 rect = new UnityEngine.Rect(0.0f, 0.0f, 1f, 1f);
                 Camera.rect = rect;
@@ -116,7 +116,7 @@ public class CameraRenderEx : MonoBehaviour
                 _prevShadowQuality = new ShadowQuality?();
             }
 
-            if (_previousLayers is {Count: > 0})
+            if (_previousLayers is { Count: > 0 })
             {
                 RenderHelper.RestoreLayers(_previousLayers);
                 _previousLayers.Clear();
@@ -133,8 +133,8 @@ public class CameraRenderEx : MonoBehaviour
                 var texture = Camera.targetTexture;
                 Graphics.CopyTexture(texture, 0, 0, 0, 0, texture.width,
                     texture.height, _prevTexture, 0, 0,
-                    (int) (_prevRect.Value.x * _prevTexture.width),
-                    (int) (_prevRect.Value.y * _prevTexture.height));
+                    (int)(_prevRect.Value.x * _prevTexture.width),
+                    (int)(_prevRect.Value.y * _prevTexture.height));
                 Camera.rect = _prevRect.Value;
                 _prevRect = new UnityEngine.Rect?();
             }
