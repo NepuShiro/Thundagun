@@ -33,7 +33,6 @@ public class Thundagun : ResoniteMod
     public static DateTime resoniteStartTime = DateTime.Now;
     public static double unityEMA = 16.67;
     public static double resoniteEMA = 16.67;
-    public static double timeBudget = 16.67;
     public static void UpdateUnityEMA(double frameTime)
     {
         double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
@@ -88,7 +87,7 @@ public class Thundagun : ResoniteMod
         new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
-    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 99999999.0);
+    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 64.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
         new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
