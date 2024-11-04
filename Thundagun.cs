@@ -81,7 +81,7 @@ public class Thundagun : ResoniteMod
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EngineTickRate =
-        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 30);
+        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
         new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
