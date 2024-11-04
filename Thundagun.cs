@@ -30,6 +30,7 @@ public class Thundagun : ResoniteMod
     public static DateTime resoniteStartTime = DateTime.Now; // do we get start time elsewhere already?
     public static DateTime lastTimeout = DateTime.Now;
     public static DateTime lastStateUpdate = DateTime.Now;
+    public static DateTime lastUnlock = DateTime.Now;
     public static double unityEMA = 16.67; 
     public static double resoniteEMA = 16.67;
     public static void UpdateUnityEMA() // can this be an OnFinished?
@@ -288,18 +289,57 @@ public static class FrooxEngineRunnerPatch // check
 
                 Thundagun.UpdateUnityEMA();
 
+                // Reused config values
+                double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
+                double timeoutCooldown = Thundagun.Config.GetValue(Thundagun.TimeoutCooldown);
+                double timeoutWorkInterval = Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval);
+
+                // start lock holding pattern
                 lock (Thundagun.lockObject)
                 {
-                    while ((Thundagun.CurrentSyncMode == Thundagun.SyncMode.Sync) && Thundagun.lockResoniteUnlockUnity)
+
+                    // if we're expected to be in sync mode, we try to lock Unity
+                    if (Thundagun.CurrentSyncMode == Thundagun.SyncMode.Sync)
                     {
-                        Monitor.Wait(Thundagun.lockObject);
+                        // start tracking lock time
+                        Thundagun.lastUnlock = DateTime.Now;
+
+                        // Start the lock loop
+                        while (Thundagun.lockResoniteUnlockUnity)
+                        {
+                            // see how long we've been locked for
+                            double elapsedTime = (DateTime.Now - Thundagun.lastUnlock).TotalMilliseconds;
+                            // if we're in a timeout currently
+                            if (DateTime.Now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
+                            {
+                                // bypass the lock during timeouts
+                                break;
+                            }
+                            else
+                            {
+                                // see if we need to start a timeout
+                                if (elapsedTime > timeoutThreshold)
+                                {
+                                    // enter a timeout
+                                    Thundagun.lastTimeout = DateTime.Now;
+                                    // break out of the loop
+                                    break;
+                                }
+                            }
+                            // Wait with a timeout to avoid indefinite blocking
+                            Monitor.Wait(Thundagun.lockObject, TimeSpan.FromMilliseconds(timeoutWorkInterval));
+
+
+                        }
                     }
-
+                    // Allow resonite to continue; works for both timeouts and sync
                     Thundagun.lockResoniteUnlockUnity = true;
-
                     Monitor.Pulse(Thundagun.lockObject);
                 }
 
+
+
+                // Update tracking times after the lock is processed
                 Thundagun.unityStartTime = DateTime.Now;
 
 

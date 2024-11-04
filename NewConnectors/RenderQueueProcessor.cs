@@ -52,12 +52,12 @@ public class RenderQueueProcessor : MonoBehaviour // compare
 
         // current timestamp
         DateTime now = DateTime.Now;
-        // checks if we're in a batch/sync holding pattern
+        // checks if we're in a batch holding pattern
         double timeSinceLastStateUpdate = (now - Thundagun.lastStateUpdate).TotalMilliseconds;
         // we can only know the batch flag from the ema
         bool useBatchProcessing = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Async;
 
-        // if we've been skipping/waiting for too long
+        // if we've been skipping for too long
         if (timeSinceLastStateUpdate > timeoutThreshold)
         {
             // enter a timeout
@@ -66,7 +66,7 @@ public class RenderQueueProcessor : MonoBehaviour // compare
             useBatchProcessing = false;
         }
 
-        double timeElapsed = 0;
+        double timeElapsed;
 
         lock (batchQueue)
         {
