@@ -80,8 +80,8 @@ public class Thundagun : ResoniteMod
     internal readonly static ModConfigurationKey<bool> DebugLogging =
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> DebugLoggingTickRate =
-        new("DebugLoggingTickRate", "Debug Logging Tick Rate: The rate at which debug logs are written.", () => 30);
+    internal readonly static ModConfigurationKey<float> EngineTickRate =
+        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 30);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
         new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
@@ -239,7 +239,7 @@ public static class FrooxEngineRunnerPatch
                             engine.AssetsUpdated(total); 
                             engine.RunUpdateLoop(); 
                             TimeSpan engine_time = (DateTime.Now - beforeEngine);
-                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.DebugLoggingTickRate)) + 1));
+                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
                             if (engine_time < ticktime)
                             {
                                 Task.Delay(ticktime - engine_time);
