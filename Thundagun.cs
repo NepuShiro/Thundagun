@@ -26,11 +26,12 @@ public class Thundagun : ResoniteMod
     public override string Version => "1.0.0";
 
     public static double Performance; // what is this used for?
-    public static DateTime unityStartTime = DateTime.Now - TimeSpan.FromMinutes(1); // do we get start time elsewhere already?
-    public static DateTime resoniteStartTime = DateTime.Now - TimeSpan.FromMinutes(1); // do we get start time elsewhere already?
-    public static DateTime lastTimeout = DateTime.Now - TimeSpan.FromMinutes(1); // tracks last timeout
-    public static double unityEMA = 256.0; // tracks average update rate
-    public static double resoniteEMA = 1.0; // tracks average update rate
+    public static DateTime unityStartTime = DateTime.Now; // do we get start time elsewhere already?
+    public static DateTime resoniteStartTime = DateTime.Now; // do we get start time elsewhere already?
+    public static DateTime lastTimeout = DateTime.Now;
+    public static DateTime lastStateUpdate = DateTime.Now;
+    public static double unityEMA = 16.67; 
+    public static double resoniteEMA = 16.67;
     public static void UpdateUnityEMA() // can this be an OnFinished?
     {
         double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
@@ -43,7 +44,7 @@ public class Thundagun : ResoniteMod
         double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
         resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
     }
-    public static SyncMode CurrentSyncMode // this seems good; does it need to be a property?
+    public static SyncMode CurrentSyncMode // this seems good; just an ema estimate; does it need to be a property?
     {
         get
         {
@@ -59,13 +60,13 @@ public class Thundagun : ResoniteMod
     
     public static readonly Queue<IUpdatePacket> CurrentPackets = new(); // needed?
 
-    public static Task CurrentTask; // needed to hold task
+    public static Task CurrentTask;
 
-    public static bool lockResoniteUnlockUnity = false; // atomic mutually exclusive lock
+    public static bool lockResoniteUnlockUnity = false;
 
-    public static readonly object lockObject = new(); // the lockobject
+    public static readonly object lockObject = new();
 
-    public static void QueuePacket(IUpdatePacket packet) // needed I assume?
+    public static void QueuePacket(IUpdatePacket packet) // check
     {
         lock (CurrentPackets)
         {
@@ -113,27 +114,27 @@ public class Thundagun : ResoniteMod
         Async,
         Desync,
     }
-    public override void OnEngineInit() // early hook?
+    public override void OnEngineInit() // check
     {
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
 
-        PatchEngineTypes(); // how does this work?
-        PatchComponentConnectors(harmony); // this is just harmony, right?
+        PatchEngineTypes();
+        PatchComponentConnectors(harmony);
 
         var workerInitializerMethod = typeof(WorkerInitializer)
             .GetMethods(AccessTools.all)
             .First(i => i.Name.Contains("Initialize") && i.GetParameters().Length == 1 &&
-                        i.GetParameters()[0].ParameterType == typeof(Type)); // ???
+                        i.GetParameters()[0].ParameterType == typeof(Type));
         var workerInitializerPatch =
-            typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize)); // ???
+            typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize));
 
-        harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch)); // ???
+        harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch));
 
         harmony.PatchAll();
     }
 
-    public static void PatchEngineTypes() // look at this closer
+    public static void PatchEngineTypes() // check
     {
         var engineTypes = typeof(Slot).Assembly.GetTypes()
             .Where(i => i.GetCustomAttribute<ImplementableClassAttribute>() is not null).ToList();
@@ -170,7 +171,7 @@ public class Thundagun : ResoniteMod
         }
     }
 
-    public static void PatchComponentConnectors(Harmony harmony) // look at this
+    public static void PatchComponentConnectors(Harmony harmony) // check
     {
         var types = typeof(Thundagun).Assembly.GetTypes()
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
@@ -195,7 +196,7 @@ public class Thundagun : ResoniteMod
 }
 
 [HarmonyPatch(typeof(FrooxEngineRunner))]
-public static class FrooxEngineRunnerPatch // compare and check
+public static class FrooxEngineRunnerPatch // check
 {
 
     public static Queue<int> assets_processed = new();
@@ -539,7 +540,7 @@ public static class WorkerInitializerPatch
     }
 }
 
-// is this native?
+// check
 public abstract class UpdatePacket<T> : IUpdatePacket
 {
     public T Owner;
@@ -551,13 +552,13 @@ public abstract class UpdatePacket<T> : IUpdatePacket
     }
 }
 
-// native?
+// check
 public interface IUpdatePacket
 {
     public void Update();
 }
 
-// ???
+// check
 public class PerformanceTimer
 {
     private string Name;
