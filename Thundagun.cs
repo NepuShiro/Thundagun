@@ -9,6 +9,7 @@ using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
+using Leap;
 using ResoniteModLoader;
 using UnityEngine;
 using UnityFrooxEngineRunner;
@@ -26,49 +27,10 @@ public class Thundagun : ResoniteMod
     public override string Version => "1.0.0";
 
     public static double Performance;
-    // all of this is not thread safe. The synchronization logic needs to be moved into a dedicated class
-    // this class would define a single shared sync mode state
-    // It should be simple for the queueProcessor and locks to check the sync mode and act accordingly
-    public static DateTime unityStartTime = DateTime.Now; // do we get start time elsewhere already?
-    public static DateTime resoniteStartTime = DateTime.Now; // do we get start time elsewhere already?
-    public static DateTime lastTimeout = DateTime.Now - TimeSpan.FromHours(1);
-    public static DateTime lastStateUpdate = DateTime.Now - TimeSpan.FromHours(1);
-    public static DateTime lastUnlock = DateTime.Now - TimeSpan.FromHours(1);
-    public static double unityEMA = 16.67; 
-    public static double resoniteEMA = 16.67;
-    public static void UpdateUnityEMA() // can this be an OnFinished?
-    {
-        double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
-        double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
-        unityEMA = alpha * elapsed + (1 - alpha) * unityEMA;
-    }
-    public static void UpdateResoniteEMA() // can this be an OnFinished?
-    {
-        double elapsed = (DateTime.Now - resoniteStartTime).TotalMilliseconds;
-        double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
-        resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
-    }
-    public static SyncMode CurrentSyncMode // this seems good; just an ema estimate; does it need to be a property?
-    {
-        get
-        {
-            double ratio = unityEMA / resoniteEMA;
-            if (ratio > Config.GetValue(AsyncToDesyncRatioThreshold) || 1.0/ratio > Config.GetValue(AsyncToDesyncRatioThreshold))
-                return SyncMode.Desync;
-            else if (ratio > Config.GetValue(SyncToAsyncRatioThreshold) || 1.0/ratio > Config.GetValue(SyncToAsyncRatioThreshold))
-                return SyncMode.Async;
-            else
-                return SyncMode.Sync;
-        }
-    }
     
     public static readonly Queue<IUpdatePacket> CurrentPackets = new(); 
 
     public static Task CurrentTask;
-
-    public static bool lockResoniteUnlockUnity = false;
-
-    public static readonly object lockObject = new();
 
     public static void QueuePacket(IUpdatePacket packet)
     {
@@ -81,7 +43,7 @@ public class Thundagun : ResoniteMod
 
     internal static ModConfiguration Config;
 
-    // Implement getters for all these keys to ensure they're within proper bounds
+    // Implement predicates for all these keys to ensure they're within proper bounds
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // might want separate logging for Unity and Resonite sides?
@@ -113,12 +75,6 @@ public class Thundagun : ResoniteMod
     internal readonly static ModConfigurationKey<float> EMAExponent =
         new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
 
-    public enum SyncMode
-    {
-        Sync,
-        Async,
-        Desync,
-    }
     public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
@@ -596,4 +552,77 @@ public class PerformanceTimer
         timer.Stop();
         Thundagun.Msg($"{Name}: {timer.Elapsed.TotalSeconds}");
     }
+}
+
+// make this thread safe
+public static class SynchronizationManager
+{
+    //private static readonly object syncLock = new();
+    private static DateTime unityStartTime = DateTime.Now;
+    private static DateTime resoniteStartTime = DateTime.Now;
+    private static DateTime timeoutStartTime = DateTime.Now;
+    private static SyncMode currentSyncMode = SyncMode.Sync;
+    private static double unityEMA = 16.67;
+    private static double resoniteEMA = 16.67;
+    public static void OnUnityUpdate()
+    {
+        double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
+        double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
+        unityEMA = alpha * elapsed + (1 - alpha) * unityEMA;
+
+        double ratio = unityEMA / resoniteEMA;
+        if (ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold))
+            currentSyncMode = SyncMode.Desync;
+        else if (ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold))
+            currentSyncMode = SyncMode.Async;
+        else
+            currentSyncMode = SyncMode.Sync;
+
+        unityStartTime = DateTime.Now;
+    }
+    public static void OnResoniteUpdate()
+    {
+        double elapsed = (DateTime.Now - resoniteStartTime).TotalMilliseconds;
+        double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
+        resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
+
+        resoniteStartTime = DateTime.Now;
+
+    }
+    public static SyncMode CurrentSyncMode 
+    {
+        get
+        {
+            return currentSyncMode;
+        }
+    }
+    public static bool Timeout
+    {
+        get
+        {
+            if ((DateTime.Now - timeoutStartTime).TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.TimeoutCooldown))
+            {
+                return true;
+            }
+            else
+            {
+                if ((DateTime.Now - timeoutStartTime).TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.TimeoutThreshold))
+                {
+                    timeoutStartTime = DateTime.Now;
+                    return true;
+                }
+                else
+                {
+                    return false;
+                }
+            }
+        }
+    }
+}
+
+public enum SyncMode
+{
+    Sync,
+    Async,
+    Desync,
 }
