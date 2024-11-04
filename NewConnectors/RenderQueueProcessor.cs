@@ -44,7 +44,6 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool useBatchProcessing = Thundagun.UseAsync;
         lock (batchQueue)
         {
             if (batchQueue.Count == 0)
@@ -55,47 +54,47 @@ public class RenderQueueProcessor : MonoBehaviour
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
-            if (useBatchProcessing)
+            double timeElapsed = 0.0;
+            DateTime startTime = DateTime.Now;
+
+            while (batchQueue.Count > 0)
             {
-                while (batchQueue.Count > 0 && batchQueue.Peek().IsComplete)
+                var batch = batchQueue.Peek();
+
+                // is it safe to access the sync mode from here?
+                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async && !SynchronizationManager.Timeout)
                 {
-                    var completedBatch = batchQueue.Dequeue();
-                    foreach (var renderTask in completedBatch.Tasks)
+                    return;
+                }
+
+                while (batch.Tasks.Count > 0)
+                {
+                    var renderTask = batch.Tasks.Dequeue();
+                    try
                     {
-                        try
-                        {
-                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
-                        }
-                        catch (Exception ex)
-                        {
-                            renderTask.task.SetException(ex);
-                        }
+                        renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
+                    }
+                    catch (Exception ex)
+                    {
+                        renderTask.task.SetException(ex);
+                    }
+                    timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                    {
+                        break;
                     }
                 }
-            }
-            else
-            {
-                while (batchQueue.Count > 0)
+                timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
                 {
-                    var batch = batchQueue.Peek();
-                    while (batch.Tasks.Count > 0)
-                    {
-                        var renderTask = batch.Tasks.Dequeue();
-                        try
-                        {
-                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
-                        }
-                        catch (Exception ex)
-                        {
-                            renderTask.task.SetException(ex);
-                        }
-                    }
-                    if (batch.IsComplete)
-                    {
-                        batchQueue.Dequeue(); 
-                    }
+                    break;
+                }
+                if (batch.IsComplete && batch.Tasks.Count == 0)
+                {
+                    batchQueue.Dequeue();
                 }
             }
+
 
             if (renderingContext.HasValue)
             {
