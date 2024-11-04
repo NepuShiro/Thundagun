@@ -44,22 +44,6 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        /*
-        double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
-        double timeoutCooldown = Thundagun.Config.GetValue(Thundagun.TimeoutCooldown);
-        double timeoutWorkInterval = Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval);
-
-        DateTime now = DateTime.Now;
-        double timeSinceLastStateUpdate = (now - Thundagun.lastStateUpdate).TotalMilliseconds;
-        bool useBatchProcessing = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Async;
-
-        if (timeSinceLastStateUpdate > timeoutThreshold)
-        {
-            Thundagun.lastTimeout = now;
-            useBatchProcessing = false;
-        }
-        */
-
         lock (batchQueue)
         {
             if (batchQueue.Count == 0)

@@ -49,7 +49,7 @@ public class Thundagun : ResoniteMod
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // might want separate logging for Unity and Resonite sides?
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> LoggingRate =
-      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f); // not implemented yet
+      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EngineTickRate =
         new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000);
@@ -220,8 +220,7 @@ public static class FrooxEngineRunnerPatch
 
 
                             RenderConnector.renderQueue.MarkAsCompleted();
-
-                            // I believe this is the last step in the Resonite update loop
+                            // I believe this is the last step in the main Resonite update loop
                             SynchronizationManager.OnResoniteUpdate();
                         }
 
@@ -496,6 +495,24 @@ public class PerformanceTimer
     }
 }
 
+public static class ThreadLogger
+{
+    public static Task Task = null;
+
+    static ThreadLogger()
+    {
+        Task = Task.Run(() =>
+        {
+            while (true)
+            {
+                Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode}");
+                Thread.Sleep((int)(1.0f / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
+            }
+        });
+    }
+}
+
+
 public static class SynchronizationManager
 {
     private static readonly object syncLock = new();
@@ -505,8 +522,7 @@ public static class SynchronizationManager
     private static SyncMode currentSyncMode = SyncMode.Sync;
     private static double unityEMA = 16.67;
     private static double resoniteEMA = 16.67;
-    private static bool resoniteReady = true;
-    private static bool unityReady = true;
+    private static bool lockResoniteUnlockUnity = false;
     // is accessing like this thread-safe?
     public static double UnityEMA
     {
@@ -536,11 +552,10 @@ public static class SynchronizationManager
         else
             currentSyncMode = SyncMode.Sync;
 
-        unityReady = true;
         // is it safe to have Unity skip over the lock like this? Only Unity will ever take advantage of the timeout.
         lock (syncLock)
         {
-            while (!resoniteReady)
+            while (!lockResoniteUnlockUnity)
             {
                 if (Timeout || currentSyncMode != SyncMode.Sync)
                 {
@@ -548,11 +563,15 @@ public static class SynchronizationManager
                 }
 
                 // we need some form of polling to see if the timeout has been triggered
+                // or do we? try removing the wait
                 Monitor.Wait(syncLock, TimeSpan.FromMilliseconds(0.1));
             }
+
+            Monitor.Pulse(syncLock);
+
+            lockResoniteUnlockUnity = false;
         }
 
-        unityReady = false;
         unityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
@@ -561,19 +580,21 @@ public static class SynchronizationManager
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
 
-        resoniteReady = true;
 
         lock (syncLock)
         {
-            Monitor.Pulse(syncLock);
 
-            while (!unityReady)
+            while (lockResoniteUnlockUnity)
             {
                 Monitor.Wait(syncLock);
             }
+
+            Monitor.Pulse(syncLock);
+
+            lockResoniteUnlockUnity = true;
         }
 
-        resoniteReady = false;
+        
         resoniteStartTime = DateTime.Now;
     }
     public static SyncMode CurrentSyncMode 
@@ -587,6 +608,7 @@ public static class SynchronizationManager
     {
         get
         {
+            // not thread safe
             if ((DateTime.Now - timeoutStartTime).TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.TimeoutCooldown))
             {
                 return true;
