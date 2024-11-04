@@ -26,6 +26,9 @@ public class Thundagun : ResoniteMod
     public override string Version => "1.0.0";
 
     public static double Performance;
+    // all of this is not thread safe. The synchronization logic needs to be moved into a dedicated class
+    // this class would define a single shared sync mode state
+    // It should be simple for the queueProcessor and locks to check the sync mode and act accordingly
     public static DateTime unityStartTime = DateTime.Now; // do we get start time elsewhere already?
     public static DateTime resoniteStartTime = DateTime.Now; // do we get start time elsewhere already?
     public static DateTime lastTimeout = DateTime.Now - TimeSpan.FromHours(1);
@@ -78,6 +81,7 @@ public class Thundagun : ResoniteMod
 
     internal static ModConfiguration Config;
 
+    // Implement getters for all these keys to ensure they're within proper bounds
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // might want separate logging for Unity and Resonite sides?
