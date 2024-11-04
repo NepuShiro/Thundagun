@@ -364,7 +364,7 @@ public static class FrooxEngineRunnerPatch
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
                     Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
-                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds} Current mode: {Thundagun.CurrentSyncMode} ");
+                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds} Current mode: {Thundagun.CurrentSyncMode} Unity update time: {Thundagun.unityEMA} FrooxEngine update time: {Thundagun.resoniteEMA}");
                 }
                 lastrender = DateTime.Now;
             }
