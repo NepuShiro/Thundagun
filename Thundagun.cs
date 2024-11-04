@@ -91,13 +91,13 @@ public class Thundagun : ResoniteMod
         new("SyncMode", "Sync Mode: Whether to use sync mode or async mode.", () => SyncMode.Sync);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> AutoMode =
-        new("AutoMode", "Auto Mode: Automatically switches to async if the Unity-Resonite or Resonite-Unity ratio is greater than some threshold.", () => false);
+        new("AutoMode", "Auto Mode: Auto switches to async if the game-renderer/renderer-game ratio is greater than some threshold.", () => false);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> RatioThreshold =
         new("RatioThreshold", "Ratio Threshold: The ratio to use when deciding whether to switch to async during auto mode.", () => 4.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
-        new("EMAExponent", "EMAExponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
+        new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
 
     public enum SyncMode
     {
