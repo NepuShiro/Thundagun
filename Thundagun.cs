@@ -14,6 +14,7 @@ using ResoniteModLoader;
 using UnityEngine;
 using UnityEngine.XR;
 using UnityFrooxEngineRunner;
+using Object = UnityEngine.Object;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
 using Texture2DConnector = Thundagun.NewConnectors.AssetConnectors.TextureConnector;
@@ -121,6 +122,8 @@ public class Thundagun : ResoniteMod
         harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch));
 
         harmony.PatchAll();
+
+        PostProcessingInterface.SetupCamera = NewConnectors.CameraInitializer.SetupCamera;
     }
 
     public static void PatchEngineTypes()
@@ -217,6 +220,25 @@ public static class FrooxEngineRunnerPatch
         else
         {
             ____externalUpdate.Stop();
+
+            if (!firstrunengine)
+            {
+                firstrunengine = true;
+                
+                //patch both headoutputs
+                
+                PatchHeadOutput(____vrOutput);
+                PatchHeadOutput(____screenOutput);
+                
+                //as a last resort, nuke every single old post-processing component
+                var toRemove = __instance.gameObject.scene.GetRootGameObjects().SelectMany(i => i.GetComponentsInChildren<CameraPostprocessingManager>());
+                foreach (var remove in toRemove)
+                {
+                    Thundagun.Msg("deleting a stray post-processing manager");
+                    Object.Destroy(remove);
+                }
+            }
+            
             try
             {
                 UpdateFrameRate(__instance);
@@ -391,6 +413,25 @@ public static class FrooxEngineRunnerPatch
             ____externalUpdate.Restart();
         }
         return false;
+    }
+
+    private static void PatchHeadOutput(HeadOutput output)
+    {
+        if (output == null) return;
+        var cameraSettings = new CameraSettings
+        {
+            IsPrimary = true,
+            IsVR = output.Type == HeadOutput.HeadOutputType.VR,
+            MotionBlur = output.AllowMotionBlur,
+            ScreenSpaceReflection = output.AllowScreenSpaceReflection,
+            SetupPostProcessing = Application.platform != RuntimePlatform.Android
+        };
+        foreach (var camera in output.cameras)
+        {
+            var toRemove = camera.gameObject.GetComponents<CameraPostprocessingManager>();
+            foreach (var r in toRemove) Object.Destroy(r);
+            PostProcessingInterface.SetupCamera(camera, cameraSettings);
+        }
     }
 
     [HarmonyReversePatch]
