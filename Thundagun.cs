@@ -35,12 +35,12 @@ public class Thundagun : ResoniteMod
     public static double resoniteEMA = 16.67;
     public static void UpdateUnityEMA(double frameTime)
     {
-        double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
+        double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
         unityEMA = alpha * frameTime + (1 - alpha) * unityEMA;
     }
     public static void UpdateResoniteEMA(double frameTime)
     {
-        double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
+        double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
         resoniteEMA = alpha * frameTime + (1 - alpha) * resoniteEMA;
     }
     public static SyncMode CurrentSyncMode
@@ -364,7 +364,7 @@ public static class FrooxEngineRunnerPatch
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
                     Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
-                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
+                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds} Current mode: {Thundagun.CurrentSyncMode} ");
                 }
                 lastrender = DateTime.Now;
             }
