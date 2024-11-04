@@ -35,11 +35,7 @@ public class Thundagun : ResoniteMod
 
     public static void QueuePacket(IUpdatePacket packet)
     {
-        lock (CurrentPackets)
-        {
-            CurrentPackets.Enqueue(packet);
-        }
-
+        lock (CurrentPackets) CurrentPackets.Enqueue(packet);
     }
 
     internal static ModConfiguration Config;
@@ -168,8 +164,8 @@ public static class FrooxEngineRunnerPatch
     public static DateTime lastrender;
     public static DateTime lastTick;
 
-    public static bool firstrunengine = false;
-    public static bool shutdown = false;
+    public static bool firstrunengine;
+    public static bool shutdown;
 
     [HarmonyPrefix]
     [HarmonyPatch("Update")]
@@ -210,50 +206,37 @@ public static class FrooxEngineRunnerPatch
             try
             {
                 UpdateFrameRate(__instance);
-                DateTime starttime = DateTime.Now;
+                var starttime = DateTime.Now;
 
 
                 var engine = ____frooxEngine;
-                if (Thundagun.CurrentTask is null)
+                Thundagun.CurrentTask ??= Task.Run(() =>
                 {
-                    Thundagun.CurrentTask = Task.Run(() =>
+                    while (!shutdown)
                     {
+                        var total = 0;
+                        lock (assets_processed)
+                            while (assets_processed.Any()) total += assets_processed.Dequeue();
 
-                        while (!shutdown)
+                        var beforeEngine = DateTime.Now;
+                        engine.AssetsUpdated(total);
+                        engine.RunUpdateLoop();
+                        var engineTime = (DateTime.Now - beforeEngine);
+                        var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
+                        if (engineTime < ticktime)
                         {
-                            int total = 0;
-                            lock (assets_processed)
-                            {
-                                while (assets_processed.Count() > 0)
-                                {
-                                    total += assets_processed.Dequeue();
-                                }
-                            }
-
-                            DateTime beforeEngine = DateTime.Now;
-                            engine.AssetsUpdated(total); 
-                            engine.RunUpdateLoop(); 
-                            TimeSpan engine_time = (DateTime.Now - beforeEngine);
-                            TimeSpan ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
-                            if (engine_time < ticktime)
-                            {
-                                Task.Delay(ticktime - engine_time);
-                            }
-
-
-                            RenderConnector.renderQueue.MarkAsCompleted();
-                            // I believe this is the last step in the main Resonite update loop
-                            SynchronizationManager.OnResoniteUpdate();
+                            Task.Delay(ticktime - engineTime);
                         }
 
 
-                    });
-
-                }
+                        RenderConnector.renderQueue.MarkAsCompleted();
+                        // I believe this is the last step in the main Resonite update loop
+                        SynchronizationManager.OnResoniteUpdate();
+                    }
+                });
                 // technically not the last or first thing called, but it does happen only once per cycle
                 SynchronizationManager.OnUnityUpdate();
-
-
+                
                 if (Thundagun.CurrentTask?.Exception is not null) throw Thundagun.CurrentTask.Exception;
 
                 var focusedWorld = engine.WorldManager.FocusedWorld;
@@ -267,28 +250,15 @@ public static class FrooxEngineRunnerPatch
                 List<IUpdatePacket> updates;
                 lock (Thundagun.CurrentPackets)
                 {
-                    updates = new List<IUpdatePacket>(Thundagun.CurrentPackets);
+                    updates = [..Thundagun.CurrentPackets];
                     Thundagun.CurrentPackets.Clear();
                 }
 
 
-                if (UnityAssetIntegrator._instance is not null) 
-                {
-                    lock (assets_processed)
-                    {
-                        assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
-                    }
-
-                }
+                if (UnityAssetIntegrator._instance is not null)
+                    lock (assets_processed) assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
 
                 var assetTime = DateTime.Now;
-
-
-
-
-
-
-
                 var loopTime = DateTime.Now;
 
                 foreach (var update in updates)
@@ -302,10 +272,7 @@ public static class FrooxEngineRunnerPatch
                         Thundagun.Msg(e);
                     }
                 }
-
-
-
-
+                
                 var updateTime = DateTime.Now;
 
                 if (focusedWorld != lastFocused)
@@ -319,9 +286,7 @@ public static class FrooxEngineRunnerPatch
                 UpdateQualitySettings(__instance);
 
                 var finishTime = DateTime.Now;
-
-
-
+                
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
                     Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
@@ -332,9 +297,9 @@ public static class FrooxEngineRunnerPatch
             catch (Exception ex)
             {
                 Thundagun.Msg($"Exception updating FrooxEngine:\n{ex}");
-                DateTime startwait = DateTime.Now;
-                int i = 0;
-                Task wait = new Task(() => Task.Delay(10000));
+                var startwait = DateTime.Now;
+                var i = 0;
+                var wait = new Task(() => Task.Delay(10000));
                 wait.Start();
                 wait.Wait();
                 UniLog.Error($"Exception updating FrooxEngine:\n{ex}");
@@ -538,7 +503,7 @@ public class PerformanceTimer
 
 public static class ThreadLogger
 {
-    public static Task Task = null;
+    public static Task Task;
 
     static ThreadLogger()
     {
@@ -556,116 +521,77 @@ public static class ThreadLogger
 
 public static class SynchronizationManager
 {
-    private static readonly object syncLock = new();
-    private static DateTime unityStartTime = DateTime.Now;
-    private static DateTime resoniteStartTime = DateTime.Now;
-    private static DateTime timeoutStartTime = DateTime.Now;
-    private static SyncMode currentSyncMode = SyncMode.Sync;
-    private static double unityEMA = 16.67;
-    private static double resoniteEMA = 16.67;
-    private static bool lockResoniteUnlockUnity = false;
+    private static readonly object SyncLock = new();
+    private static DateTime _unityStartTime = DateTime.Now;
+    private static DateTime _resoniteStartTime = DateTime.Now;
+    private static DateTime _timeoutStartTime = DateTime.Now;
+    private static bool _lockResoniteUnlockUnity;
     // is accessing like this thread-safe?
-    public static double UnityEMA
-    {
-        get
-        {
-            return unityEMA;
-        }
-    }
-    public static double ResoniteEMA
-    {
-        get
-        {
-            return resoniteEMA;
-        }
-    }
+    public static double UnityEMA { get; private set; } = 16.67;
+    public static double ResoniteEMA { get; private set; } = 16.67;
     public static void OnUnityUpdate()
     {
-        double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
+        var elapsed = (DateTime.Now - _unityStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
-        unityEMA = alpha * elapsed + (1 - alpha) * unityEMA;
+        UnityEMA = alpha * elapsed + (1 - alpha) * UnityEMA;
 
-        double ratio = unityEMA / resoniteEMA;
+        var ratio = UnityEMA / ResoniteEMA;
         if (ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold))
-            currentSyncMode = SyncMode.Desync;
+            CurrentSyncMode = SyncMode.Desync;
         else if (ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold))
-            currentSyncMode = SyncMode.Async;
+            CurrentSyncMode = SyncMode.Async;
         else
-            currentSyncMode = SyncMode.Sync;
+            CurrentSyncMode = SyncMode.Sync;
 
         // is it safe to have Unity skip over the lock like this? Only Unity will ever take advantage of the timeout.
-        lock (syncLock)
+        lock (SyncLock)
         {
-            while (!lockResoniteUnlockUnity)
+            while (!_lockResoniteUnlockUnity)
             {
-                if (Timeout || currentSyncMode != SyncMode.Sync)
-                {
-                    break;
-                }
+                if (Timeout || CurrentSyncMode != SyncMode.Sync) break;
 
                 // we need some form of polling to see if the timeout has been triggered
                 // or do we? try removing the wait
-                Monitor.Wait(syncLock, TimeSpan.FromMilliseconds(0.1));
+                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
 
-            Monitor.Pulse(syncLock);
+            Monitor.Pulse(SyncLock);
 
-            lockResoniteUnlockUnity = false;
+            _lockResoniteUnlockUnity = false;
         }
 
-        unityStartTime = DateTime.Now;
+        _unityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
     {
-        double elapsed = (DateTime.Now - resoniteStartTime).TotalMilliseconds;
+        var elapsed = (DateTime.Now - _resoniteStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
-        resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
+        ResoniteEMA = alpha * elapsed + (1 - alpha) * ResoniteEMA;
 
 
-        lock (syncLock)
+        lock (SyncLock)
         {
-
-            while (lockResoniteUnlockUnity)
-            {
-                Monitor.Wait(syncLock);
-            }
-
-            Monitor.Pulse(syncLock);
-
-            lockResoniteUnlockUnity = true;
+            while (_lockResoniteUnlockUnity) Monitor.Wait(SyncLock);
+            Monitor.Pulse(SyncLock);
+            _lockResoniteUnlockUnity = true;
         }
 
         
-        resoniteStartTime = DateTime.Now;
+        _resoniteStartTime = DateTime.Now;
     }
-    public static SyncMode CurrentSyncMode 
-    {
-        get
-        {
-            return currentSyncMode;
-        }
-    }
+    public static SyncMode CurrentSyncMode { get; private set; } = SyncMode.Sync;
     public static bool Timeout
     {
         get
         {
             // not thread safe
-            if ((DateTime.Now - timeoutStartTime).TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.TimeoutCooldown))
+            if ((DateTime.Now - _timeoutStartTime).TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.TimeoutCooldown)) return true;
+            if ((DateTime.Now - _timeoutStartTime).TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.TimeoutThreshold))
             {
+                _timeoutStartTime = DateTime.Now;
                 return true;
             }
-            else
-            {
-                if ((DateTime.Now - timeoutStartTime).TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.TimeoutThreshold))
-                {
-                    timeoutStartTime = DateTime.Now;
-                    return true;
-                }
-                else
-                {
-                    return false;
-                }
-            }
+            return false;
         }
     }
 }
