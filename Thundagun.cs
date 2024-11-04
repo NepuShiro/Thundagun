@@ -554,16 +554,17 @@ public class PerformanceTimer
     }
 }
 
-// make this thread safe
 public static class SynchronizationManager
 {
-    //private static readonly object syncLock = new();
+    private static readonly object syncLock = new();
     private static DateTime unityStartTime = DateTime.Now;
     private static DateTime resoniteStartTime = DateTime.Now;
     private static DateTime timeoutStartTime = DateTime.Now;
     private static SyncMode currentSyncMode = SyncMode.Sync;
     private static double unityEMA = 16.67;
     private static double resoniteEMA = 16.67;
+    private static bool resoniteReady = true;
+    private static bool unityReady = true;
     public static void OnUnityUpdate()
     {
         double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
@@ -578,6 +579,18 @@ public static class SynchronizationManager
         else
             currentSyncMode = SyncMode.Sync;
 
+        unityReady = true;
+        lock (syncLock)
+        {
+            Monitor.Pulse(syncLock);
+
+            while (!resoniteReady)
+            {
+                Monitor.Wait(syncLock);
+            }
+        }
+
+        unityReady = false;
         unityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
@@ -586,8 +599,20 @@ public static class SynchronizationManager
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
 
-        resoniteStartTime = DateTime.Now;
+        resoniteReady = true;
 
+        lock (syncLock)
+        {
+            Monitor.Pulse(syncLock);
+
+            while (!unityReady)
+            {
+                Monitor.Wait(syncLock);
+            }
+        }
+
+        resoniteReady = false;
+        resoniteStartTime = DateTime.Now;
     }
     public static SyncMode CurrentSyncMode 
     {
