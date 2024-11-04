@@ -59,7 +59,7 @@ public class Thundagun : ResoniteMod
         }
     }
     
-    public static readonly Queue<IUpdatePacket> CurrentPackets = new(); // needed?
+    public static readonly Queue<IUpdatePacket> CurrentPackets = new(); 
 
     public static Task CurrentTask;
 
@@ -67,7 +67,7 @@ public class Thundagun : ResoniteMod
 
     public static readonly object lockObject = new();
 
-    public static void QueuePacket(IUpdatePacket packet) // check
+    public static void QueuePacket(IUpdatePacket packet) 
     {
         lock (CurrentPackets)
         {
@@ -115,7 +115,7 @@ public class Thundagun : ResoniteMod
         Async,
         Desync,
     }
-    public override void OnEngineInit() // check
+    public override void OnEngineInit() 
     {
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
@@ -135,7 +135,7 @@ public class Thundagun : ResoniteMod
         harmony.PatchAll();
     }
 
-    public static void PatchEngineTypes() // check
+    public static void PatchEngineTypes() 
     {
         var engineTypes = typeof(Slot).Assembly.GetTypes()
             .Where(i => i.GetCustomAttribute<ImplementableClassAttribute>() is not null).ToList();
@@ -172,7 +172,7 @@ public class Thundagun : ResoniteMod
         }
     }
 
-    public static void PatchComponentConnectors(Harmony harmony) // check
+    public static void PatchComponentConnectors(Harmony harmony) 
     {
         var types = typeof(Thundagun).Assembly.GetTypes()
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
@@ -197,7 +197,7 @@ public class Thundagun : ResoniteMod
 }
 
 [HarmonyPatch(typeof(FrooxEngineRunner))]
-public static class FrooxEngineRunnerPatch // check
+public static class FrooxEngineRunnerPatch
 {
 
     public static Queue<int> assets_processed = new();
@@ -442,9 +442,8 @@ public static class FrooxEngineRunnerPatch // check
 
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateFrameRate")]
-    public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub"); // ???
+    public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub");
 
-    // check
     private static void UpdateHeadOutput(World focusedWorld, Engine engine, HeadOutput VR, HeadOutput screen, AudioListener listener, ref List<World> worlds)
     {
         if (focusedWorld == null) return;
@@ -486,11 +485,9 @@ public static class FrooxEngineRunnerPatch // check
         worlds.Clear();
     }
 
-    // reverse patch? check
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");
-    // check
     private static void Shutdown(this FrooxEngineRunner runner, ref Engine engine)
     {
         UniLog.Log("Shutting down");
@@ -515,7 +512,6 @@ public static class FrooxEngineRunnerPatch // check
     }
 }
 
-// check; why are these things in root? Is this the only place for patches?
 [HarmonyPatch(typeof(AssetInitializer))]
 public static class AssetInitializerPatch
 {
@@ -553,7 +549,6 @@ public static class AssetInitializerPatch
 }
 
 
-// check
 public static class WorkerInitializerPatch
 {
     public static void Initialize(Type workerType, WorkerInitInfo __result)
@@ -580,7 +575,6 @@ public static class WorkerInitializerPatch
     }
 }
 
-// check
 public abstract class UpdatePacket<T> : IUpdatePacket
 {
     public T Owner;
@@ -592,13 +586,10 @@ public abstract class UpdatePacket<T> : IUpdatePacket
     }
 }
 
-// check
 public interface IUpdatePacket
 {
     public void Update();
 }
-
-// check
 public class PerformanceTimer
 {
     private string Name;

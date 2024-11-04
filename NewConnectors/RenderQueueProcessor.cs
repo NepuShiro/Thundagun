@@ -2,13 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using FrooxEngine;
-using Leap;
 using UnityEngine;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
 
-public class RenderQueueProcessor : MonoBehaviour // compare
+public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
 
@@ -25,7 +24,7 @@ public class RenderQueueProcessor : MonoBehaviour // compare
         }
     }
 
-    public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings) // compare
+    public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
