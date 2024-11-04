@@ -1,7 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using FrooxEngine;
+using Leap;
 using UnityEngine;
 using UnityFrooxEngineRunner;
 
@@ -44,68 +47,118 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool useBatchProcessing = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Async;
-        bool departEarly = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Desync;
-        DateTime departureTime = DateTime.Now + TimeSpan.FromMilliseconds(Thundagun.resoniteEMA);
+        // cache config values
+        //bool useBatchProcessing = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Async; // fix batch processing later
+        double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
+        double timeoutCooldown = Thundagun.Config.GetValue(Thundagun.TimeoutCooldown);
+        double timeoutWorkInterval = Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval);
+
+        // set arrival time
+        DateTime arrivalTime = DateTime.Now;
+
+        // define shared variables
+        DateTime now;
+        double timeElapsed;
+
+        // begin processing
         lock (batchQueue)
         {
+            // if no tasks, return
             if (batchQueue.Count == 0)
             {
                 return;
             }
+            // if only one task, check if it is complete
+            //else if (batchQueue.Count == 1)
+            //{
+            //    if (useBatchProcessing && !batchQueue.Peek().IsComplete)
+            //    {
+            //        return;
+            //    }
+            //}
 
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
-            if (useBatchProcessing)
+            // while we still have batches left
+            while (batchQueue.Count > 0)
             {
-                while (batchQueue.Count > 0 && batchQueue.Peek().IsComplete)
+                // get the oldest batch?
+                var batch = batchQueue.Peek();
+
+                // if the last batch isn't done yet and we're batching
+                //if (!batch.IsComplete && useBatchProcessing)
+                //{
+                //    // don't process the unfinished batch
+                //    return;
+                //}
+
+                // while we still have tasks left
+                while (batch.Tasks.Count > 0)
                 {
-                    var completedBatch = batchQueue.Dequeue();
-                    foreach (var renderTask in completedBatch.Tasks)
+                    // pop off a render task
+                    var renderTask = batch.Tasks.Dequeue();
+                    // try to apply it
+                    try
                     {
-                        try
-                        {
-                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
-                        }
-                        catch (Exception ex)
-                        {
-                            renderTask.task.SetException(ex);
-                        }
+                        renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
                     }
-                }
-            }
-            else
-            {
-                while (batchQueue.Count > 0)
-                {
-                    var batch = batchQueue.Peek();
-                    while (batch.Tasks.Count > 0)
+                    catch (Exception ex)
                     {
-                        var renderTask = batch.Tasks.Dequeue();
-                        try
+                        renderTask.task.SetException(ex);
+                    }
+                    // update now
+                    now = DateTime.Now;
+                    // update time elapsed
+                    timeElapsed = (now - arrivalTime).TotalMilliseconds;
+                    // see if we're in an active timeout
+                    if (now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
+                    {
+                        // help the ema catch up
+                        Thundagun.unityEMA = timeoutThreshold;
+                        // we might still be in async, ensure we stop doing the whole batch
+                        //useBatchProcessing = false;
+                        // if so, see if we're running over schedule
+                        if (timeElapsed > timeoutWorkInterval)
                         {
-                            renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
-                        }
-                        catch (Exception ex)
-                        {
-                            renderTask.task.SetException(ex);
-                        }
-                        if (departEarly && (DateTime.Now > departureTime))
-                        {
+                            // if so, break out
                             break;
                         }
                     }
-                    if (batch.IsComplete && batch.Tasks.Count == 0)
+                    else // not in an active timeout, should check if we might be in one
                     {
-                        batchQueue.Dequeue(); 
+                        if (timeElapsed > timeoutThreshold)
+                        {
+                            // update the last timeout to enter a timeout state again
+                            Thundagun.lastTimeout = now;
+                        }
+
                     }
-                    if (departEarly && (DateTime.Now > departureTime))
+                }
+                now = DateTime.Now;
+                timeElapsed = (now - arrivalTime).TotalMilliseconds;
+                // see if we're in an active timeout
+                if (now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
+                {
+                    // help the ema catch up
+                    Thundagun.unityEMA = timeoutThreshold;
+                    // we might still be in async, ensure we stop doing the whole batch
+                    //useBatchProcessing = false;
+                    // if so, see if we're running over schedule
+                    if (timeElapsed > timeoutWorkInterval)
                     {
+                        // if so, break out
                         break;
                     }
                 }
+                // if a finished batch has been emptied
+                if (batch.IsComplete && batch.Tasks.Count == 0)
+                {
+                    // remove finished empty batch
+                    batchQueue.Dequeue();
+                }
             }
+         
 
             if (renderingContext.HasValue)
             {

@@ -9,14 +9,11 @@ using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
-using Leap;
 using ResoniteModLoader;
 using UnityEngine;
-using UnityEngine.XR;
 using UnityFrooxEngineRunner;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
-using Texture2DConnector = Thundagun.NewConnectors.AssetConnectors.TextureConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 
@@ -28,22 +25,25 @@ public class Thundagun : ResoniteMod
     public override string Author => "Fro Zen, DoubleStyx, 989onan";
     public override string Version => "1.0.0";
 
-    public static double Performance;
-    public static DateTime unityStartTime = DateTime.Now;
-    public static DateTime resoniteStartTime = DateTime.Now;
-    public static double unityEMA = 16.67;
-    public static double resoniteEMA = 16.67;
-    public static void UpdateUnityEMA(double frameTime)
+    public static double Performance; // what is this used for?
+    public static DateTime unityStartTime = DateTime.Now - TimeSpan.FromMinutes(1); // do we get start time elsewhere already?
+    public static DateTime resoniteStartTime = DateTime.Now - TimeSpan.FromMinutes(1); // do we get start time elsewhere already?
+    public static DateTime lastTimeout = DateTime.Now - TimeSpan.FromMinutes(1); // tracks last timeout
+    public static double unityEMA = 256.0; // tracks average update rate
+    public static double resoniteEMA = 1.0; // tracks average update rate
+    public static void UpdateUnityEMA() // can this be an OnFinished?
     {
+        double elapsed = (DateTime.Now - unityStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
-        unityEMA = alpha * frameTime + (1 - alpha) * unityEMA;
+        unityEMA = alpha * elapsed + (1 - alpha) * unityEMA;
     }
-    public static void UpdateResoniteEMA(double frameTime)
+    public static void UpdateResoniteEMA() // can this be an OnFinished?
     {
+        double elapsed = (DateTime.Now - resoniteStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Config.GetValue(EMAExponent), 0.001f, 0.999f);
-        resoniteEMA = alpha * frameTime + (1 - alpha) * resoniteEMA;
+        resoniteEMA = alpha * elapsed + (1 - alpha) * resoniteEMA;
     }
-    public static SyncMode CurrentSyncMode
+    public static SyncMode CurrentSyncMode // this seems good; does it need to be a property?
     {
         get
         {
@@ -57,15 +57,15 @@ public class Thundagun : ResoniteMod
         }
     }
     
-    public static readonly Queue<IUpdatePacket> CurrentPackets = new();
+    public static readonly Queue<IUpdatePacket> CurrentPackets = new(); // needed?
 
-    public static Task CurrentTask;
+    public static Task CurrentTask; // needed to hold task
 
-    public static bool lockResoniteUnlockUnity = false;
+    public static bool lockResoniteUnlockUnity = false; // atomic mutually exclusive lock
 
-    public static readonly object lockObject = new();
+    public static readonly object lockObject = new(); // the lockobject
 
-    public static void QueuePacket(IUpdatePacket packet)
+    public static void QueuePacket(IUpdatePacket packet) // needed I assume?
     {
         lock (CurrentPackets)
         {
@@ -78,16 +78,31 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false);
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // separate logging for Unity and Resonite sides
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<float> LoggingRate =
+      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f); // not implemented yet
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EngineTickRate =
-        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000);
+        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000); // how is this handled?
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<float> UnityTickRate =
+        new("UnityTickRate", "Unity Tick Rate: The max rate at which Unity can update.", () => 1000); // not implemented yet
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
         new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
-    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 64.0);
+    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 16.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<double> TimeoutThreshold =
+    new("TimeoutThreshold", "Timeout Threshold: The time required to consider Resonite/Unity frozen and to emergency-switch to desync.", () => 100.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<double> TimeoutCooldown =
+    new("TimeoutCooldown", "Timeout Cooldown: The time required after a panic to listen for thresholds again.", () => 1000.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<double> TimeoutWorkInterval =
+    new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time Unity will spend processing changes during a timeout.", () => 16.67);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
         new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
@@ -98,27 +113,27 @@ public class Thundagun : ResoniteMod
         Async,
         Desync,
     }
-    public override void OnEngineInit()
+    public override void OnEngineInit() // early hook?
     {
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
 
-        PatchEngineTypes();
-        PatchComponentConnectors(harmony);
+        PatchEngineTypes(); // how does this work?
+        PatchComponentConnectors(harmony); // this is just harmony, right?
 
         var workerInitializerMethod = typeof(WorkerInitializer)
             .GetMethods(AccessTools.all)
             .First(i => i.Name.Contains("Initialize") && i.GetParameters().Length == 1 &&
-                        i.GetParameters()[0].ParameterType == typeof(Type));
+                        i.GetParameters()[0].ParameterType == typeof(Type)); // ???
         var workerInitializerPatch =
-            typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize));
+            typeof(WorkerInitializerPatch).GetMethod(nameof(WorkerInitializerPatch.Initialize)); // ???
 
-        harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch));
+        harmony.Patch(workerInitializerMethod, postfix: new HarmonyMethod(workerInitializerPatch)); // ???
 
         harmony.PatchAll();
     }
 
-    public static void PatchEngineTypes()
+    public static void PatchEngineTypes() // look at this closer
     {
         var engineTypes = typeof(Slot).Assembly.GetTypes()
             .Where(i => i.GetCustomAttribute<ImplementableClassAttribute>() is not null).ToList();
@@ -155,12 +170,8 @@ public class Thundagun : ResoniteMod
         }
     }
 
-    public static void PatchComponentConnectors(Harmony harmony)
+    public static void PatchComponentConnectors(Harmony harmony) // look at this
     {
-        /*
-        var workerInitializerField =
-            typeof(WorkerInitializer).GetField("connectors", BindingFlags.Static | BindingFlags.NonPublic);
-            */
         var types = typeof(Thundagun).Assembly.GetTypes()
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
 
@@ -184,7 +195,7 @@ public class Thundagun : ResoniteMod
 }
 
 [HarmonyPatch(typeof(FrooxEngineRunner))]
-public static class FrooxEngineRunnerPatch
+public static class FrooxEngineRunnerPatch // compare and check
 {
 
     public static Queue<int> assets_processed = new();
@@ -250,7 +261,7 @@ public static class FrooxEngineRunnerPatch
 
                             TimeSpan elapsed = DateTime.Now - Thundagun.resoniteStartTime;
 
-                            Thundagun.UpdateResoniteEMA(elapsed.TotalMilliseconds);
+                            Thundagun.UpdateResoniteEMA();
 
                             lock (Thundagun.lockObject)
                             {
@@ -274,7 +285,7 @@ public static class FrooxEngineRunnerPatch
 
                 TimeSpan elapsed = DateTime.Now - Thundagun.unityStartTime;
 
-                Thundagun.UpdateUnityEMA(elapsed.TotalMilliseconds);
+                Thundagun.UpdateUnityEMA();
 
                 lock (Thundagun.lockObject)
                 {
@@ -390,8 +401,9 @@ public static class FrooxEngineRunnerPatch
 
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateFrameRate")]
-    public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub");
+    public static void UpdateFrameRate(object instance) => throw new NotImplementedException("stub"); // ???
 
+    // check
     private static void UpdateHeadOutput(World focusedWorld, Engine engine, HeadOutput VR, HeadOutput screen, AudioListener listener, ref List<World> worlds)
     {
         if (focusedWorld == null) return;
@@ -433,9 +445,11 @@ public static class FrooxEngineRunnerPatch
         worlds.Clear();
     }
 
+    // reverse patch? check
     [HarmonyReversePatch]
     [HarmonyPatch("UpdateQualitySettings")]
     public static void UpdateQualitySettings(object instance) => throw new NotImplementedException("stub");
+    // check
     private static void Shutdown(this FrooxEngineRunner runner, ref Engine engine)
     {
         UniLog.Log("Shutting down");
@@ -460,6 +474,7 @@ public static class FrooxEngineRunnerPatch
     }
 }
 
+// check; why are these things in root? Is this the only place for patches?
 [HarmonyPatch(typeof(AssetInitializer))]
 public static class AssetInitializerPatch
 {
@@ -496,6 +511,8 @@ public static class AssetInitializerPatch
     }
 }
 
+
+// check
 public static class WorkerInitializerPatch
 {
     public static void Initialize(Type workerType, WorkerInitInfo __result)
@@ -522,6 +539,7 @@ public static class WorkerInitializerPatch
     }
 }
 
+// is this native?
 public abstract class UpdatePacket<T> : IUpdatePacket
 {
     public T Owner;
@@ -533,11 +551,13 @@ public abstract class UpdatePacket<T> : IUpdatePacket
     }
 }
 
+// native?
 public interface IUpdatePacket
 {
     public void Update();
 }
 
+// ???
 public class PerformanceTimer
 {
     private string Name;
