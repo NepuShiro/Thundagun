@@ -25,12 +25,12 @@ public class Thundagun : ResoniteMod
     public override string Author => "Fro Zen, DoubleStyx, 989onan";
     public override string Version => "1.0.0";
 
-    public static double Performance; // what is this used for?
+    public static double Performance;
     public static DateTime unityStartTime = DateTime.Now; // do we get start time elsewhere already?
     public static DateTime resoniteStartTime = DateTime.Now; // do we get start time elsewhere already?
-    public static DateTime lastTimeout = DateTime.Now;
-    public static DateTime lastStateUpdate = DateTime.Now;
-    public static DateTime lastUnlock = DateTime.Now;
+    public static DateTime lastTimeout = DateTime.Now - TimeSpan.FromHours(1);
+    public static DateTime lastStateUpdate = DateTime.Now - TimeSpan.FromHours(1);
+    public static DateTime lastUnlock = DateTime.Now - TimeSpan.FromHours(1);
     public static double unityEMA = 16.67; 
     public static double resoniteEMA = 16.67;
     public static void UpdateUnityEMA() // can this be an OnFinished?
@@ -80,13 +80,13 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // separate logging for Unity and Resonite sides
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // might want separate logging for Unity and Resonite sides?
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> LoggingRate =
       new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f); // not implemented yet
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EngineTickRate =
-        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000); // how is this handled?
+        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> UnityTickRate =
         new("UnityTickRate", "Unity Tick Rate: The max rate at which Unity can update.", () => 1000); // not implemented yet
@@ -104,7 +104,7 @@ public class Thundagun : ResoniteMod
     new("TimeoutCooldown", "Timeout Cooldown: The time required after a panic to listen for thresholds again.", () => 1000.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> TimeoutWorkInterval =
-    new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time Unity will spend processing changes during a timeout.", () => 16.67);
+    new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time Unity will spend processing changes during a timeout.", () => 100.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
         new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
@@ -289,57 +289,43 @@ public static class FrooxEngineRunnerPatch
 
                 Thundagun.UpdateUnityEMA();
 
-                // Reused config values
                 double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
                 double timeoutCooldown = Thundagun.Config.GetValue(Thundagun.TimeoutCooldown);
                 double timeoutWorkInterval = Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval);
 
-                // start lock holding pattern
                 lock (Thundagun.lockObject)
                 {
 
-                    // if we're expected to be in sync mode, we try to lock Unity
                     if (Thundagun.CurrentSyncMode == Thundagun.SyncMode.Sync)
                     {
-                        // start tracking lock time
                         Thundagun.lastUnlock = DateTime.Now;
 
-                        // Start the lock loop
                         while (Thundagun.lockResoniteUnlockUnity)
                         {
-                            // see how long we've been locked for
                             double elapsedTime = (DateTime.Now - Thundagun.lastUnlock).TotalMilliseconds;
-                            // if we're in a timeout currently
                             if (DateTime.Now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
                             {
-                                // bypass the lock during timeouts
                                 break;
                             }
                             else
                             {
-                                // see if we need to start a timeout
                                 if (elapsedTime > timeoutThreshold)
                                 {
-                                    // enter a timeout
                                     Thundagun.lastTimeout = DateTime.Now;
-                                    // break out of the loop
                                     break;
                                 }
                             }
-                            // Wait with a timeout to avoid indefinite blocking
                             Monitor.Wait(Thundagun.lockObject, TimeSpan.FromMilliseconds(timeoutWorkInterval));
 
 
                         }
                     }
-                    // Allow resonite to continue; works for both timeouts and sync
                     Thundagun.lockResoniteUnlockUnity = true;
                     Monitor.Pulse(Thundagun.lockObject);
                 }
 
 
 
-                // Update tracking times after the lock is processed
                 Thundagun.unityStartTime = DateTime.Now;
 
 
