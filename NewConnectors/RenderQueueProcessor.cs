@@ -44,7 +44,11 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        bool useBatchProcessing = Thundagun.UseAsync;
+        bool useBatchProcessing = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Async;
+        bool departEarly = Thundagun.CurrentSyncMode == Thundagun.SyncMode.Desync;
+        TimeSpan timeOffset = (DateTime.Now - Thundagun.unityStartTime) - TimeSpan.FromMilliseconds(Thundagun.timeBudget);
+        Thundagun.timeBudget =  Thundagun.timeBudget - timeOffset.TotalMilliseconds;
+        DateTime departureTime = DateTime.Now + TimeSpan.FromMilliseconds(Thundagun.timeBudget);
         lock (batchQueue)
         {
             if (batchQueue.Count == 0)
@@ -80,6 +84,10 @@ public class RenderQueueProcessor : MonoBehaviour
                     var batch = batchQueue.Peek();
                     while (batch.Tasks.Count > 0)
                     {
+                        if (departEarly && (DateTime.Now > departureTime))
+                        {
+                            break;
+                        }
                         var renderTask = batch.Tasks.Dequeue();
                         try
                         {
@@ -89,6 +97,12 @@ public class RenderQueueProcessor : MonoBehaviour
                         {
                             renderTask.task.SetException(ex);
                         }
+                    }
+                    // This is added to avoid accidentally dequeuing the batch if we are departing early and left tasks behind
+                    // In the rare chance that the batch was actually fully processed, it'll be dequeued the next frame
+                    if (departEarly && (DateTime.Now > departureTime))
+                    {
+                        break;
                     }
                     if (batch.IsComplete)
                     {

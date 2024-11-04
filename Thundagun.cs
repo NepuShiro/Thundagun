@@ -31,35 +31,33 @@ public class Thundagun : ResoniteMod
     public static double Performance;
     public static DateTime unityStartTime = DateTime.Now;
     public static DateTime resoniteStartTime = DateTime.Now;
-    private static double _unityEMA = 16.67;
-    private static double _resoniteEMA = 16.67;
+    public static double unityEMA = 16.67;
+    public static double resoniteEMA = 16.67;
+    public static double timeBudget = 16.67;
     public static void UpdateUnityEMA(double frameTime)
     {
         double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
-        _unityEMA = alpha * frameTime + (1 - alpha) * _unityEMA;
+        unityEMA = alpha * frameTime + (1 - alpha) * unityEMA;
     }
     public static void UpdateResoniteEMA(double frameTime)
     {
         double alpha = Mathf.Clamp01(Config.GetValue(EMAExponent));
-        _resoniteEMA = alpha * frameTime + (1 - alpha) * _resoniteEMA;
+        resoniteEMA = alpha * frameTime + (1 - alpha) * resoniteEMA;
     }
-    private static bool AsyncThresholdReached
+    public static SyncMode CurrentSyncMode
     {
         get
         {
-            double threshold = Config.GetValue(RatioThreshold);
-            return (_unityEMA / _resoniteEMA) > threshold || (_resoniteEMA / _unityEMA) > threshold;
-        }
-    }
-    public static bool UseAsync
-    {
-        get
-        {
-            return (Thundagun.Config.GetValue(Mode) == SyncMode.Async && !Thundagun.Config.GetValue(AutoMode)) || (Thundagun.Config.GetValue(AutoMode) && AsyncThresholdReached);
+            double ratio = unityEMA / resoniteEMA;
+            if (ratio > Config.GetValue(AsyncToDesyncRatioThreshold) || 1.0/ratio > Config.GetValue(AsyncToDesyncRatioThreshold))
+                return SyncMode.Desync;
+            else if (ratio > Config.GetValue(SyncToAsyncRatioThreshold) || 1.0/ratio > Config.GetValue(SyncToAsyncRatioThreshold))
+                return SyncMode.Async;
+            else
+                return SyncMode.Sync;
         }
     }
     
-
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
     public static Task CurrentTask;
@@ -86,14 +84,11 @@ public class Thundagun : ResoniteMod
     internal readonly static ModConfigurationKey<float> DebugLoggingTickRate =
         new("DebugLoggingTickRate", "Debug Logging Tick Rate: The rate at which debug logs are written.", () => 30);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<SyncMode> Mode =
-        new("SyncMode", "Sync Mode: Whether to use sync mode or async mode.", () => SyncMode.Sync);
+    internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
+        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<bool> AutoMode =
-        new("AutoMode", "Auto Mode: Auto switches to async if the game-renderer/renderer-game ratio is greater than some threshold.", () => false);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> RatioThreshold =
-        new("RatioThreshold", "Ratio Threshold: The ratio to use when deciding whether to switch to async during auto mode.", () => 4.0);
+    internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
+    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 99999999.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
         new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
@@ -101,7 +96,8 @@ public class Thundagun : ResoniteMod
     public enum SyncMode
     {
         Sync,
-        Async
+        Async,
+        Desync,
     }
     public override void OnEngineInit()
     {
@@ -260,7 +256,7 @@ public static class FrooxEngineRunnerPatch
                             lock (Thundagun.lockObject)
                             {
 
-                                while (!Thundagun.UseAsync && !Thundagun.lockResoniteUnlockUnity)
+                                while ((Thundagun.CurrentSyncMode == Thundagun.SyncMode.Sync) && !Thundagun.lockResoniteUnlockUnity)
                                 {
                                     Monitor.Wait(Thundagun.lockObject);
                                 }
@@ -283,7 +279,7 @@ public static class FrooxEngineRunnerPatch
 
                 lock (Thundagun.lockObject)
                 {
-                    while (!Thundagun.UseAsync && Thundagun.lockResoniteUnlockUnity)
+                    while ((Thundagun.CurrentSyncMode == Thundagun.SyncMode.Sync) && Thundagun.lockResoniteUnlockUnity)
                     {
                         Monitor.Wait(Thundagun.lockObject);
                     }
