@@ -44,6 +44,7 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
+        /*
         double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
         double timeoutCooldown = Thundagun.Config.GetValue(Thundagun.TimeoutCooldown);
         double timeoutWorkInterval = Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval);
@@ -57,8 +58,7 @@ public class RenderQueueProcessor : MonoBehaviour
             Thundagun.lastTimeout = now;
             useBatchProcessing = false;
         }
-
-        double timeElapsed;
+        */
 
         lock (batchQueue)
         {
@@ -70,17 +70,18 @@ public class RenderQueueProcessor : MonoBehaviour
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
+            double timeElapsed = 0.0;
+            DateTime startTime = DateTime.Now;
+
             while (batchQueue.Count > 0)
             {
                 var batch = batchQueue.Peek();
 
-                if (!batch.IsComplete && useBatchProcessing)
+                // is it safe to access the sync mode from here?
+                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async && !SynchronizationManager.Timeout)
                 {
                     return;
                 }
-
-
-                Thundagun.lastStateUpdate = now;
 
                 while (batch.Tasks.Count > 0)
                 {
@@ -93,24 +94,16 @@ public class RenderQueueProcessor : MonoBehaviour
                     {
                         renderTask.task.SetException(ex);
                     }
-                    now = DateTime.Now;
-                    timeElapsed = (now - Thundagun.lastStateUpdate).TotalMilliseconds;
-                    if (now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
-                    {
-                        if (timeElapsed > timeoutWorkInterval)
-                        {
-                            break;
-                        }
-                    }
-                }
-                now = DateTime.Now;
-                timeElapsed = (now - Thundagun.lastStateUpdate).TotalMilliseconds;
-                if (now - Thundagun.lastTimeout < TimeSpan.FromSeconds(timeoutCooldown))
-                {
-                    if (timeElapsed > timeoutWorkInterval)
+                    timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
                     {
                         break;
                     }
+                }
+                timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
+                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                {
+                    break;
                 }
                 if (batch.IsComplete && batch.Tasks.Count == 0)
                 {
