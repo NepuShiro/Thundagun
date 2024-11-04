@@ -67,7 +67,7 @@ public class Thundagun : ResoniteMod
 
     public static readonly object lockObject = new();
 
-    public static void QueuePacket(IUpdatePacket packet) 
+    public static void QueuePacket(IUpdatePacket packet)
     {
         lock (CurrentPackets)
         {
@@ -115,7 +115,7 @@ public class Thundagun : ResoniteMod
         Async,
         Desync,
     }
-    public override void OnEngineInit() 
+    public override void OnEngineInit()
     {
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
@@ -135,7 +135,7 @@ public class Thundagun : ResoniteMod
         harmony.PatchAll();
     }
 
-    public static void PatchEngineTypes() 
+    public static void PatchEngineTypes()
     {
         var engineTypes = typeof(Slot).Assembly.GetTypes()
             .Where(i => i.GetCustomAttribute<ImplementableClassAttribute>() is not null).ToList();
@@ -172,7 +172,7 @@ public class Thundagun : ResoniteMod
         }
     }
 
-    public static void PatchComponentConnectors(Harmony harmony) 
+    public static void PatchComponentConnectors(Harmony harmony)
     {
         var types = typeof(Thundagun).Assembly.GetTypes()
             .Where(i => i.IsClass && i.GetInterfaces().Contains(typeof(IConnector))).ToList();
@@ -547,7 +547,6 @@ public static class AssetInitializerPatch
         return false;
     }
 }
-
 
 public static class WorkerInitializerPatch
 {
