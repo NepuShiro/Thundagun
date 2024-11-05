@@ -57,15 +57,15 @@ public class Thundagun : ResoniteMod
             false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
-        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0,
+        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The frametime ratio threshold to switch from sync to async.", () => 4.0,
             false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
-    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 16.0,
+    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The frametime ratio threshold to switch from async to desync.", () => 16.0,
         false, value => value > 2);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MaxWorkInterval =
-        new("MaxWorkInterval", "Max Work Interval: The max amount of time in milliseconds Unity will spend processing changes.", () => 100.0,
+        new("MaxWorkInterval", "Max Work Interval: The max amount of time in milliseconds Unity will spend in total processing changes and waiting on a sync lock.", () => 100.0,
             false, value => value < 1000 || value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
