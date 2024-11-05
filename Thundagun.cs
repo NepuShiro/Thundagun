@@ -228,7 +228,7 @@ public static class FrooxEngineRunnerPatch
                             Task.Delay(ticktime - engineTime);
                         }
 
-
+                        // how to communicate completion status? Move to sync manager?
                         RenderConnector.renderQueue.MarkAsCompleted();
                         // I believe this is the last step in the main Resonite update loop
                         SynchronizationManager.OnResoniteUpdate();
