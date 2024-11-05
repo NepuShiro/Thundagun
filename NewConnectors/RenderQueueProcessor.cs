@@ -57,7 +57,7 @@ public class RenderQueueProcessor : MonoBehaviour
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
             DateTime startTime = DateTime.Now;
-            double timeElapsed;
+            TimeSpan timeElapsed;
 
             while (_batchQueue.Count > 0)
             {
@@ -79,15 +79,16 @@ public class RenderQueueProcessor : MonoBehaviour
                     {
                         renderTask.task.SetException(ex);
                     }
-                    timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval) && SynchronizationManager.CurrentSyncMode == SyncMode.Desync)
+                    timeElapsed = (DateTime.Now - startTime);
+                    if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
                     {
                         break;
                     }
                 }
-                timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval) && SynchronizationManager.CurrentSyncMode == SyncMode.Desync)
+                timeElapsed = (DateTime.Now - startTime);
+                if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
                 {
+                    SynchronizationManager.AddUnityWorkTime(timeElapsed);
                     break;
                 }
                 if (batch.IsComplete && batch.Tasks.Count == 0)
