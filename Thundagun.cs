@@ -223,7 +223,7 @@ public static class FrooxEngineRunnerPatch
                         var beforeEngine = DateTime.Now;
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
-                        var resoniteInterval = (DateTime.Now - resoniteStart).TotalMilliseconds;
+                        var resoniteInterval = (DateTime.Now - SynchronizationManager.ResoniteStartTime);
                         var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
                         if (resoniteInterval < ticktime)
                         {
@@ -234,7 +234,7 @@ public static class FrooxEngineRunnerPatch
                         SynchronizationManager.OnResoniteUpdate();
                     }
                 });
-                var unityInterval = (DateTime.Now - unityStart).TotalMilliseconds;
+                var unityInterval = (DateTime.Now - SynchronizationManager.UnityStartTime);
                 var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.UnityTickRate)) + 1));
                 if (unityInterval < ticktime)
                 {
@@ -503,15 +503,16 @@ public static class AsyncLogger
 public static class SynchronizationManager
 {
     internal static readonly object SyncLock = new();
-    internal static DateTime _unityStartTime = DateTime.Now;
-    internal static DateTime _resoniteStartTime = DateTime.Now;
+    public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
+    public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
+
     internal static bool _lockResoniteUnlockUnity;
     // is accessing like this thread-safe?
     public static double UnityEMA { get; internal set; } = 16.67;
     public static double ResoniteEMA { get; internal set; } = 16.67;
     public static void OnUnityUpdate()
     {
-        var elapsed = (DateTime.Now - _unityStartTime).TotalMilliseconds;
+        var elapsed = (DateTime.Now - UnityStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         UnityEMA = alpha * elapsed + (1 - alpha) * UnityEMA;
 
@@ -533,11 +534,11 @@ public static class SynchronizationManager
             _lockResoniteUnlockUnity = false;
         }
 
-        _unityStartTime = DateTime.Now;
+        UnityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
     {
-        var elapsed = (DateTime.Now - _resoniteStartTime).TotalMilliseconds;
+        var elapsed = (DateTime.Now - ResoniteStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         ResoniteEMA = alpha * elapsed + (1 - alpha) * ResoniteEMA;
 
@@ -550,7 +551,7 @@ public static class SynchronizationManager
         }
 
         
-        _resoniteStartTime = DateTime.Now;
+        ResoniteStartTime = DateTime.Now;
     }
     public static SyncMode CurrentSyncMode
     {
@@ -558,8 +559,8 @@ public static class SynchronizationManager
         {
             double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
             DateTime now = DateTime.Now;
-            double unityElapsed = (now - _unityStartTime).TotalMilliseconds;
-            double resoniteElapsed = (now - _resoniteStartTime).TotalMilliseconds;
+            double unityElapsed = (now - UnityStartTime).TotalMilliseconds;
+            double resoniteElapsed = (now - ResoniteStartTime).TotalMilliseconds;
 
             if (unityElapsed > timeoutThreshold)
             {
