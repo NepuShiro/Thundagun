@@ -30,6 +30,8 @@ public class Thundagun : ResoniteMod
 
     public static Task FrooxEngineTask;
 
+    public static Action MarkAsCompletedAction;
+
     public static void QueuePacket(IUpdatePacket packet)
     {
         lock (CurrentPackets) CurrentPackets.Enqueue(packet);
@@ -538,6 +540,8 @@ public static class SynchronizationManager
     }
     public static void OnResoniteUpdate()
     {
+        Thundagun.MarkAsCompletedAction?.Invoke();
+
         var elapsed = (DateTime.Now - ResoniteStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         ResoniteEMA = alpha * elapsed + (1 - alpha) * ResoniteEMA;

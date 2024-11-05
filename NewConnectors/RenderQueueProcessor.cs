@@ -14,6 +14,17 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private Queue<Batch> _batchQueue = new();
 
+    // Normally there isn't a constructor here
+    public RenderQueueProcessor()
+    {
+        Thundagun.MarkAsCompletedAction = MarkAsCompleted;
+    }
+
+    public void MarkAsCompleted()
+    {
+        _batchQueue.Last().IsComplete = true;
+    }
+
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
         var task = new TaskCompletionSource<byte[]>();
@@ -103,5 +114,5 @@ public class RenderQueueProcessor : MonoBehaviour
 public class Batch
 {
     public Queue<RenderTask> Tasks { get; private set; } = new();
-    public bool IsComplete { get; private set; } = false;
+    public bool IsComplete { get; set; } = false;
 }
