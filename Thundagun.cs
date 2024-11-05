@@ -65,7 +65,7 @@ public class Thundagun : ResoniteMod
         false, value => value > 2);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> DesyncWorkInterval =
-        new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time in milliseconds Unity will spend processing changes in desync mode.", () => 100.0,
+        new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time in milliseconds Unity will spend processing changes in desync mode.", () => 16.67,
             false, value => value < 1000 || value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> TimeoutThreshold =
