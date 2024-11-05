@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -23,7 +23,7 @@ namespace Thundagun;
 public class Thundagun : ResoniteMod
 {
     public override string Name => "Thundagun";
-    public override string Author => "Fro Zen, DoubleStyx, 989onan";
+    public override string Author => "Fro Zen, 989onan, DoubleStyx, Nytra";
     public override string Version => "1.0.0";
     
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
