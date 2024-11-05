@@ -59,7 +59,7 @@ public class RenderQueueProcessor : MonoBehaviour
             {
                 var batch = _batchQueue.Peek();
 
-                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async && !SynchronizationManager.Timeout)
+                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async)
                 {
                     return;
                 }
@@ -76,13 +76,13 @@ public class RenderQueueProcessor : MonoBehaviour
                         renderTask.task.SetException(ex);
                     }
                     timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval))
                     {
                         break;
                     }
                 }
                 timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval))
                 {
                     break;
                 }

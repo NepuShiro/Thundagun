@@ -9,7 +9,6 @@ using System.Threading.Tasks;
 using Elements.Core;
 using FrooxEngine;
 using HarmonyLib;
-using Leap;
 using ResoniteModLoader;
 using UnityEngine;
 using UnityFrooxEngineRunner;
@@ -26,12 +25,10 @@ public class Thundagun : ResoniteMod
     public override string Name => "Thundagun";
     public override string Author => "Fro Zen, DoubleStyx, 989onan";
     public override string Version => "1.0.0";
-
-    public static double Performance;
     
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
-    public static Task CurrentTask;
+    public static Task FrooxEngineTask;
 
     public static void QueuePacket(IUpdatePacket packet)
     {
@@ -40,37 +37,42 @@ public class Thundagun : ResoniteMod
 
     internal static ModConfiguration Config;
 
-    // Implement predicates for all these keys to ensure they're within proper bounds
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false); // might want separate logging for Unity and Resonite sides?
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false, 
+            false, value => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> LoggingRate =
-      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f);
+      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f, 
+          false, value => value > 0.001f || value < 1000.0f);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EngineTickRate =
-        new("EngineTickRate", "Engine Tick Rate: The max rate at which FrooxEngine can update.", () => 1000);
+        new("EngineTickRate", "Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000,
+            false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> UnityTickRate =
-        new("UnityTickRate", "Unity Tick Rate: The max rate at which Unity can update.", () => 1000); // not implemented yet
+        new("UnityTickRate", "Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000,
+            false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
-        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0);
+        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The ratio threshold to switch from sync to async.", () => 4.0,
+            false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
-    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 16.0);
+    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The ratio threshold to switch from async to desync.", () => 16.0,
+        false, value => value > 2);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<double> DesyncWorkInterval =
+        new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time in milliseconds Unity will spend processing changes in desync mode.", () => 100.0,
+            false, value => value < 1000 || value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> TimeoutThreshold =
-    new("TimeoutThreshold", "Timeout Threshold: The time required to consider Resonite/Unity frozen and to emergency-switch to desync.", () => 100.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> TimeoutCooldown =
-    new("TimeoutCooldown", "Timeout Cooldown: The time required after a panic to listen for thresholds again.", () => 1000.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> TimeoutWorkInterval =
-    new("TimeoutWorkInterval", "Timeout Work Interval: The max amount of time Unity will spend processing changes during a timeout.", () => 100.0);
+    new("TimeoutThreshold", "Timeout Threshold: The current frame time in milliseconds to consider Resonite/Unity frozen.", () => 100.0,
+        false, value => value > 1);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> EMAExponent =
-        new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f);
+        new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.1f,
+            false, value => value > 0 || value < 1);
 
     public override void OnEngineInit()
     {
@@ -210,7 +212,7 @@ public static class FrooxEngineRunnerPatch
 
 
                 var engine = ____frooxEngine;
-                Thundagun.CurrentTask ??= Task.Run(() =>
+                Thundagun.FrooxEngineTask ??= Task.Run(() =>
                 {
                     while (!shutdown)
                     {
@@ -221,23 +223,28 @@ public static class FrooxEngineRunnerPatch
                         var beforeEngine = DateTime.Now;
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
-                        var engineTime = (DateTime.Now - beforeEngine);
+                        var resoniteInterval = (DateTime.Now - resoniteStart).TotalMilliseconds;
                         var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
-                        if (engineTime < ticktime)
+                        if (resoniteInterval < ticktime)
                         {
-                            Task.Delay(ticktime - engineTime);
+                            Task.Delay(ticktime - resoniteInterval);
                         }
 
-                        // how to communicate completion status? Move to sync manager?
-                        RenderConnector.renderQueue.MarkAsCompleted();
                         // I believe this is the last step in the main Resonite update loop
                         SynchronizationManager.OnResoniteUpdate();
                     }
                 });
+                var unityInterval = (DateTime.Now - unityStart).TotalMilliseconds;
+                var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.UnityTickRate)) + 1));
+                if (unityInterval < ticktime)
+                {
+                    Task.Delay(ticktime - unityInterval);
+                }
                 // technically not the last or first thing called, but it does happen only once per cycle
+                // less important than on Resonite, where you want all changes to be finished
                 SynchronizationManager.OnUnityUpdate();
                 
-                if (Thundagun.CurrentTask?.Exception is not null) throw Thundagun.CurrentTask.Exception;
+                if (Thundagun.FrooxEngineTask?.Exception is not null) throw Thundagun.FrooxEngineTask.Exception;
 
                 var focusedWorld = engine.WorldManager.FocusedWorld;
                 var lastFocused = ____lastFocusedWorld;
@@ -287,12 +294,6 @@ public static class FrooxEngineRunnerPatch
 
                 var finishTime = DateTime.Now;
                 
-                if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
-                {
-                    Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode} Timeout: {SynchronizationManager.Timeout}");
-                    //Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
-                    //Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
-                }
                 lastrender = DateTime.Now;
             }
             catch (Exception ex)
@@ -484,40 +485,46 @@ public interface IUpdatePacket
     public void Update();
 }
 
+public static class AsyncLogger
+{
+    private static Task asyncLoggerTask;
+
+    static AsyncLogger()
+    {
+        asyncLoggerTask = Task.Run(() =>
+        {
+            if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
+                Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode}");
+            Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
+        });
+    }
+}
 
 public static class SynchronizationManager
 {
-    private static readonly object SyncLock = new();
-    private static DateTime _unityStartTime = DateTime.Now;
-    private static DateTime _resoniteStartTime = DateTime.Now;
-    private static DateTime _timeoutStartTime = DateTime.Now;
-    private static bool _lockResoniteUnlockUnity;
+    internal static readonly object SyncLock = new();
+    internal static DateTime _unityStartTime = DateTime.Now;
+    internal static DateTime _resoniteStartTime = DateTime.Now;
+    internal static bool _lockResoniteUnlockUnity;
     // is accessing like this thread-safe?
-    public static double UnityEMA { get; private set; } = 16.67;
-    public static double ResoniteEMA { get; private set; } = 16.67;
+    public static double UnityEMA { get; internal set; } = 16.67;
+    public static double ResoniteEMA { get; internal set; } = 16.67;
     public static void OnUnityUpdate()
     {
         var elapsed = (DateTime.Now - _unityStartTime).TotalMilliseconds;
         double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
         UnityEMA = alpha * elapsed + (1 - alpha) * UnityEMA;
 
-        var ratio = UnityEMA / ResoniteEMA;
-        if (ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold))
-            CurrentSyncMode = SyncMode.Desync;
-        else if (ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold) || 1.0 / ratio > Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold))
-            CurrentSyncMode = SyncMode.Async;
-        else
-            CurrentSyncMode = SyncMode.Sync;
-
         // is it safe to have Unity skip over the lock like this? Only Unity will ever take advantage of the timeout.
         lock (SyncLock)
         {
             while (!_lockResoniteUnlockUnity)
             {
-                if (Timeout || CurrentSyncMode != SyncMode.Sync) break;
+                if (CurrentSyncMode != SyncMode.Sync) break;
 
                 // we need some form of polling to see if the timeout has been triggered
-                // or do we? try removing the wait
+                // or do we?
+                // try removing the wait?
                 Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
 
@@ -545,19 +552,36 @@ public static class SynchronizationManager
         
         _resoniteStartTime = DateTime.Now;
     }
-    public static SyncMode CurrentSyncMode { get; private set; } = SyncMode.Sync;
-    public static bool Timeout
+    public static SyncMode CurrentSyncMode
     {
         get
         {
-            // not thread safe
-            if ((DateTime.Now - _timeoutStartTime).TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.TimeoutCooldown)) return true;
-            if ((DateTime.Now - _timeoutStartTime).TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.TimeoutThreshold))
+            double timeoutThreshold = Thundagun.Config.GetValue(Thundagun.TimeoutThreshold);
+            DateTime now = DateTime.Now;
+            double unityElapsed = (now - _unityStartTime).TotalMilliseconds;
+            double resoniteElapsed = (now - _resoniteStartTime).TotalMilliseconds;
+
+            if (unityElapsed > timeoutThreshold)
             {
-                _timeoutStartTime = DateTime.Now;
-                return true;
+                UnityEMA = timeoutThreshold;
+                return SyncMode.Desync;
             }
-            return false;
+
+            if (resoniteElapsed > timeoutThreshold)
+            {
+                ResoniteEMA = timeoutThreshold;
+                return SyncMode.Desync;
+            }
+
+            var ratio = UnityEMA / ResoniteEMA;
+            double syncDesyncThreshold = Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold);
+            double asyncDesyncThreshold = Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold);
+            if (ratio > asyncDesyncThreshold || 1.0 / ratio > asyncDesyncThreshold)
+                return SyncMode.Desync;
+            else if (ratio > syncDesyncThreshold || 1.0 / ratio > syncDesyncThreshold)
+                return SyncMode.Async;
+            else
+                return SyncMode.Sync;
         }
     }
 }
