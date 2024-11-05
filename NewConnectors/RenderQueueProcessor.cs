@@ -12,41 +12,27 @@ public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
 
-    private readonly Queue<Batch> _batchQueue = new();
-
-    public void MarkAsCompleted()
-    {
-        // does this need a lock?
-        lock (_batchQueue)
-        {
-            if (_batchQueue.Count > 0)
-            {
-                _batchQueue.Peek().MarkComplete();
-            }
-        }
-    }
+    private Queue<Batch> _batchQueue = new();
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        // does this need a lock?
         lock (_batchQueue)
         {
-            if (_batchQueue.Count == 0 || _batchQueue.Peek().IsComplete)
+            if (_batchQueue.Count == 0 || _batchQueue.Last().IsComplete)
             {
                 var newBatch = new Batch();
                 _batchQueue.Enqueue(newBatch);
-                newBatch.AddTask(renderTask);
             }
-            _batchQueue.Last().AddTask(renderTask);
+            _batchQueue.Last().Tasks.Enqueue(renderTask);
         }
 
         return task.Task;
     }
 
-    private int GetBackmostBatchTaskCount()
+    private int GetLastBatchTaskCount()
     {
         if (_batchQueue.Count == 0)
             return 0;
@@ -55,8 +41,7 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        Thundagun.Msg($"Backmost batch task count: {GetBackmostBatchTaskCount()}");
-        // does this need to be locked?
+        Thundagun.Msg($"Backmost batch task count: {GetLastBatchTaskCount()}");
         lock (_batchQueue)
         {
             if (_batchQueue.Count == 0)
@@ -107,7 +92,6 @@ public class RenderQueueProcessor : MonoBehaviour
                 }
             }
 
-
             if (renderingContext.HasValue)
             {
                 RenderHelper.BeginRenderContext(renderingContext.Value);
@@ -120,14 +104,4 @@ public class Batch
 {
     public Queue<RenderTask> Tasks { get; private set; } = new();
     public bool IsComplete { get; private set; } = false;
-
-    public void AddTask(RenderTask task)
-    {
-        Tasks.Enqueue(task);
-    }
-
-    public void MarkComplete()
-    {
-        IsComplete = true;
-    }
 }
