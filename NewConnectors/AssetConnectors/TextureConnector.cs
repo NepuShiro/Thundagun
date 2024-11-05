@@ -123,9 +123,9 @@ public class TextureConnector :
             GraphicsFormat graphicsFormat = format.Format.ToUnityExperimental(ref profile);
             if (profile != format.Profile)
             {
-                this._targetProfile = profile; //new ColorProfile?(profile);
+                this._targetProfile = profile;//new ColorProfile?(profile);
             }
-            if (!(this._unityTexture3D == null) && this._unityTexture3D.width == format.Width && this._unityTexture3D.height == format.Height && this._unityTexture3D.depth == format.Depth && this._unityTexture3D.graphicsFormat == graphicsFormat && this._unityTexture3D.mipmapCount > 1 == format.Mips > 1 && profile == _targetProfile)
+            if (_unityTexture3D == null || _unityTexture3D.width != format.Width || _unityTexture3D.height != format.Height || _unityTexture3D.depth != format.Depth || _unityTexture3D.graphicsFormat != graphicsFormat || _unityTexture3D.mipmapCount > 1 != format.Mips > 1 || profile != _targetProfile)
             {
 
                 this.Destroy();
@@ -156,7 +156,7 @@ public class TextureConnector :
         {
             case GraphicsDeviceType.Direct3D11:
                 UnityAssetIntegrator.EnqueueRenderThreadProcessing(SetTextureFormatDX11Native(format));
-                break;
+                return;
                 /*
                 case GraphicsDeviceType.OpenGLES2:
                 case GraphicsDeviceType.OpenGLES3:
@@ -271,9 +271,9 @@ public class TextureConnector :
         }
         else if (data.Bitmap3D != null)
         {
-            ColorProfile profile = data.Bitmap3D.Profile;
-            ColorProfile? targetProfile = this._targetProfile;
-            if (!(profile == targetProfile.GetValueOrDefault() & targetProfile != null))
+            //ColorProfile profile = data.Bitmap3D.Profile;
+            //ColorProfile? targetProfile = _targetProfile;
+            if (_targetProfile.HasValue && data.Bitmap3D.Profile != _targetProfile)
             {
                 data.Bitmap3D.ConvertToProfile(this._targetProfile.Value);
             }
