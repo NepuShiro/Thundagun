@@ -29,7 +29,7 @@ public class Thundagun : ResoniteMod
 
     public static double Performance;
     
-    public static readonly Queue<IUpdatePacket> CurrentPackets = new(); 
+    public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
     public static Task CurrentTask;
 
@@ -289,8 +289,9 @@ public static class FrooxEngineRunnerPatch
                 
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
-                    Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
-                    Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds} Current mode: {SynchronizationManager.CurrentSyncMode} Unity update time: {SynchronizationManager.UnityEMA} FrooxEngine update time: {SynchronizationManager.ResoniteEMA}");
+                    Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode} Timeout: {SynchronizationManager.Timeout}");
+                    //Thundagun.Msg($"LastRender vs now: {(lastrender - starttime).TotalSeconds}");
+                    //Thundagun.Msg($"Boilerplate: {(boilerplateTime - starttime).TotalSeconds} Asset Integration time: {(assetTime - boilerplateTime).TotalSeconds} Loop time: {(loopTime - assetTime).TotalSeconds} Update time: {(updateTime - loopTime).TotalSeconds} Finished: {(finishTime - updateTime).TotalSeconds} total time: {(finishTime - starttime).TotalSeconds}");
                 }
                 lastrender = DateTime.Now;
             }
@@ -481,41 +482,6 @@ public abstract class UpdatePacket<T> : IUpdatePacket
 public interface IUpdatePacket
 {
     public void Update();
-}
-public class PerformanceTimer
-{
-    private string Name;
-    private Stopwatch timer;
-
-    public PerformanceTimer(string name)
-    {
-        Name = name;
-        timer = new Stopwatch();
-        timer.Start();
-    }
-
-    public void End()
-    {
-        timer.Stop();
-        Thundagun.Msg($"{Name}: {timer.Elapsed.TotalSeconds}");
-    }
-}
-
-public static class ThreadLogger
-{
-    public static Task Task;
-
-    static ThreadLogger()
-    {
-        Task = Task.Run(() =>
-        {
-            while (true)
-            {
-                Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode}");
-                Thread.Sleep((int)(1.0f / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
-            }
-        });
-    }
 }
 
 

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
@@ -11,15 +12,16 @@ public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
 
-    private Queue<Batch> batchQueue = new(); 
+    private readonly Queue<Batch> _batchQueue = new();
 
     public void MarkAsCompleted()
     {
-        lock (batchQueue)
+        // does this need a lock?
+        lock (_batchQueue)
         {
-            if (batchQueue.Count > 0)
+            if (_batchQueue.Count > 0)
             {
-                batchQueue.Peek().MarkComplete();
+                _batchQueue.Peek().MarkComplete();
             }
         }
     }
@@ -29,24 +31,35 @@ public class RenderQueueProcessor : MonoBehaviour
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (batchQueue)
+        // does this need a lock?
+        lock (_batchQueue)
         {
-            if (batchQueue.Count == 0 || batchQueue.Peek().IsComplete)
+            if (_batchQueue.Count == 0 || _batchQueue.Peek().IsComplete)
             {
                 var newBatch = new Batch();
-                batchQueue.Enqueue(newBatch);
+                _batchQueue.Enqueue(newBatch);
+                newBatch.AddTask(renderTask);
             }
-            batchQueue.Peek().AddTask(renderTask);
+            _batchQueue.Last().AddTask(renderTask);
         }
 
         return task.Task;
     }
 
+    private int GetBackmostBatchTaskCount()
+    {
+        if (_batchQueue.Count == 0)
+            return 0;
+        return _batchQueue.Last().Tasks.Count;
+    }
+
     private void LateUpdate()
     {
-        lock (batchQueue)
+        Thundagun.Msg($"Backmost batch task count: {GetBackmostBatchTaskCount()}");
+        // does this need to be locked?
+        lock (_batchQueue)
         {
-            if (batchQueue.Count == 0)
+            if (_batchQueue.Count == 0)
             {
                 return;
             }
@@ -54,14 +67,13 @@ public class RenderQueueProcessor : MonoBehaviour
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
-            double timeElapsed = 0.0;
             DateTime startTime = DateTime.Now;
+            double timeElapsed;
 
-            while (batchQueue.Count > 0)
+            while (_batchQueue.Count > 0)
             {
-                var batch = batchQueue.Peek();
+                var batch = _batchQueue.Peek();
 
-                // is it safe to access the sync mode from here?
                 if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async && !SynchronizationManager.Timeout)
                 {
                     return;
@@ -91,7 +103,7 @@ public class RenderQueueProcessor : MonoBehaviour
                 }
                 if (batch.IsComplete && batch.Tasks.Count == 0)
                 {
-                    batchQueue.Dequeue();
+                    _batchQueue.Dequeue();
                 }
             }
 
