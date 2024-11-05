@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
@@ -11,17 +12,18 @@ public class RenderQueueProcessor : MonoBehaviour
 {
     public RenderConnector Connector;
 
-    private Queue<Batch> batchQueue = new(); 
+    private Queue<Batch> _batchQueue = new();
+
+    // Normally there isn't a constructor here
+    public RenderQueueProcessor()
+    {
+        Thundagun.MarkAsCompletedAction = MarkAsCompleted;
+    }
 
     public void MarkAsCompleted()
     {
-        lock (batchQueue)
-        {
-            if (batchQueue.Count > 0)
-            {
-                batchQueue.Peek().MarkComplete();
-            }
-        }
+        if (_batchQueue.Count != 0)
+            _batchQueue.Last().IsComplete = true;
     }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
@@ -29,14 +31,14 @@ public class RenderQueueProcessor : MonoBehaviour
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (batchQueue)
+        lock (_batchQueue)
         {
-            if (batchQueue.Count == 0 || batchQueue.Peek().IsComplete)
+            if (_batchQueue.Count == 0 || _batchQueue.Last().IsComplete)
             {
                 var newBatch = new Batch();
-                batchQueue.Enqueue(newBatch);
+                _batchQueue.Enqueue(newBatch);
             }
-            batchQueue.Peek().AddTask(renderTask);
+            _batchQueue.Last().Tasks.Enqueue(renderTask);
         }
 
         return task.Task;
@@ -44,9 +46,9 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        lock (batchQueue)
+        lock (_batchQueue)
         {
-            if (batchQueue.Count == 0)
+            if (_batchQueue.Count == 0)
             {
                 return;
             }
@@ -54,15 +56,14 @@ public class RenderQueueProcessor : MonoBehaviour
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
-            double timeElapsed = 0.0;
             DateTime startTime = DateTime.Now;
+            TimeSpan timeElapsed;
 
-            while (batchQueue.Count > 0)
+            while (_batchQueue.Count > 0)
             {
-                var batch = batchQueue.Peek();
+                var batch = _batchQueue.Peek();
 
-                // is it safe to access the sync mode from here?
-                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async && !SynchronizationManager.Timeout)
+                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async)
                 {
                     return;
                 }
@@ -78,23 +79,23 @@ public class RenderQueueProcessor : MonoBehaviour
                     {
                         renderTask.task.SetException(ex);
                     }
-                    timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                    timeElapsed = (DateTime.Now - startTime);
+                    if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
                     {
                         break;
                     }
                 }
-                timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.TimeoutWorkInterval) && SynchronizationManager.Timeout)
+                timeElapsed = (DateTime.Now - startTime);
+                if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
                 {
+                    SynchronizationManager.AddUnityWorkTime(timeElapsed);
                     break;
                 }
                 if (batch.IsComplete && batch.Tasks.Count == 0)
                 {
-                    batchQueue.Dequeue();
+                    _batchQueue.Dequeue();
                 }
             }
-
 
             if (renderingContext.HasValue)
             {
@@ -107,15 +108,5 @@ public class RenderQueueProcessor : MonoBehaviour
 public class Batch
 {
     public Queue<RenderTask> Tasks { get; private set; } = new();
-    public bool IsComplete { get; private set; } = false;
-
-    public void AddTask(RenderTask task)
-    {
-        Tasks.Enqueue(task);
-    }
-
-    public void MarkComplete()
-    {
-        IsComplete = true;
-    }
+    public bool IsComplete { get; set; } = false;
 }

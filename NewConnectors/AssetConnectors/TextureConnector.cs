@@ -47,7 +47,7 @@ public class TextureConnector :
 
     public UnityEngine.Cubemap UnityCubemap => _unityCubemap;
 
-    Texture IUnityTextureProvider.UnityTexture => (Texture)UnityTexture2D ?? UnityCubemap;
+    Texture IUnityTextureProvider.UnityTexture => (Texture)(UnityTexture2D ?? ((object)UnityCubemap) ?? ((object)_unityTexture3D));
 
     public void SetTexture2DFormat(
         int width,
@@ -65,7 +65,8 @@ public class TextureConnector :
             Mips = mips,
             Format = format,
             OnDone = onDone,
-            Profile = profile
+            Profile = profile,
+            Depth = 1
         });
     }
 
@@ -84,7 +85,8 @@ public class TextureConnector :
             Mips = mips,
             Format = format,
             OnDone = onDone,
-            Profile = profile
+            Profile = profile,
+            Depth = 1
         });
     }
     public void SetTexture3DFormat(int width, int height, int depth, int mipmaps, Elements.Assets.TextureFormat format, ColorProfile profile, AssetIntegrated onDone)
@@ -121,23 +123,24 @@ public class TextureConnector :
             GraphicsFormat graphicsFormat = format.Format.ToUnityExperimental(ref profile);
             if (profile != format.Profile)
             {
-                this._targetProfile = new ColorProfile?(profile);
+                this._targetProfile = profile;//new ColorProfile?(profile);
             }
-            if (!(this._unityTexture3D == null) && this._unityTexture3D.width == format.Width && this._unityTexture3D.height == format.Height && this._unityTexture3D.depth == format.Depth && this._unityTexture3D.graphicsFormat == graphicsFormat && this._unityTexture3D.mipmapCount > 1 == format.Mips > 1)
+            if (_unityTexture3D == null || _unityTexture3D.width != format.Width || _unityTexture3D.height != format.Height || _unityTexture3D.depth != format.Depth || _unityTexture3D.graphicsFormat != graphicsFormat || _unityTexture3D.mipmapCount > 1 != format.Mips > 1 || profile != _targetProfile)
             {
-                ColorProfile colorProfile = profile;
-                ColorProfile? targetProfile = this._targetProfile;
-                if (colorProfile == targetProfile.GetValueOrDefault() & targetProfile != null)
-                {
-                    goto IL_199;
-                }
+
+                this.Destroy();
+                this._targetProfile = profile;//new ColorProfile?(profile);
+                this._unityTexture3D = new UnityEngine.Texture3D(format.Width, format.Height, format.Depth, graphicsFormat, TextureCreationFlags.None);
+                environmentInstanceChanged = true;
+                //ColorProfile colorProfile = profile;
+                //ColorProfile? targetProfile = this._targetProfile;
+                //if (colorProfile == targetProfile.GetValueOrDefault() & targetProfile != null)
+                //{
+                    //goto IL_199;
+                //}
             }
-            this.Destroy();
-            this._targetProfile = new ColorProfile?(profile);
-            this._unityTexture3D = new UnityEngine.Texture3D(format.Width, format.Height, format.Depth, graphicsFormat, TextureCreationFlags.None);
-            environmentInstanceChanged = true;
+            
         }
-    IL_199:
         this.AssignTextureProperties();
         format.OnDone(environmentInstanceChanged);
     }
@@ -146,14 +149,14 @@ public class TextureConnector :
     {
         if (format.Type == TextureConnector.TextureType.Texture3D)
         {
-            UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => SetTextureFormatUnity(format));
+            SetFormatUnity();
             return;
         }
         switch (UnityAssetIntegrator.GraphicsDeviceType)
         {
             case GraphicsDeviceType.Direct3D11:
                 UnityAssetIntegrator.EnqueueRenderThreadProcessing(SetTextureFormatDX11Native(format));
-                break;
+                return;
                 /*
                 case GraphicsDeviceType.OpenGLES2:
                 case GraphicsDeviceType.OpenGLES3:
@@ -161,6 +164,14 @@ public class TextureConnector :
                     UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.SetTextureFormatOpenGLNative(format));
                     return;
                     */
+        }
+        SetFormatUnity();
+        void SetFormatUnity()
+        {
+            UnityAssetIntegrator.EnqueueProcessing(delegate
+			{
+				SetTextureFormatUnity(format);
+			}, highPriority: true);
         }
     }
 
@@ -187,7 +198,8 @@ public class TextureConnector :
     {
         if (data.Bitmap3D != null)
         {
-            UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => UploadTextureDataUnity(data));
+            //UnityAssetIntegrator.EnqueueRenderThreadProcessing(() => UploadTextureDataUnity(data));
+            EnqueueUnityUpload();
             return;
         }
         switch (UnityAssetIntegrator.GraphicsDeviceType)
@@ -219,6 +231,14 @@ public class TextureConnector :
                 }
                 */
         }
+        EnqueueUnityUpload();
+        void EnqueueUnityUpload()
+		{
+			base.UnityAssetIntegrator.EnqueueProcessing(delegate
+			{
+				UploadTextureDataUnity(data);
+			}, Asset.HighPriorityIntegration);
+		}
     }
 
     private void UploadTextureDataUnity(TextureConnector.TextureUploadData data)
@@ -229,10 +249,10 @@ public class TextureConnector :
             int num = 0;
             for (int i = 0; i < data.StartMip; i++)
             {
-                int2 int2 = Bitmap2DBase.AlignSize(@int, data.Format);
+                int2 int2 = Bitmap2DBase.AlignSize(in @int, data.Format);
                 num += int2.x * int2.y;
                 @int = @int / 2;
-                @int = MathX.Max(@int, 1);
+                @int = MathX.Max(in @int, 1);
             }
             num = (int)MathX.BitsToBytes((double)num * data.Format.GetBitsPerPixel());
             NativeArray<byte> rawTextureData = this._unityTexture2D.GetRawTextureData<byte>();
@@ -251,13 +271,13 @@ public class TextureConnector :
         }
         else if (data.Bitmap3D != null)
         {
-            ColorProfile profile = data.Bitmap3D.Profile;
-            ColorProfile? targetProfile = this._targetProfile;
-            if (!(profile == targetProfile.GetValueOrDefault() & targetProfile != null))
+            //ColorProfile profile = data.Bitmap3D.Profile;
+            //ColorProfile? targetProfile = _targetProfile;
+            if (_targetProfile.HasValue && data.Bitmap3D.Profile != _targetProfile)
             {
                 data.Bitmap3D.ConvertToProfile(this._targetProfile.Value);
             }
-            this._unityTexture3D.SetPixelData<byte>(data.Bitmap3D.RawData, data.StartMip, 0);
+            this._unityTexture3D.SetPixelData<byte>(data.Bitmap3D.RawData, data.StartMip);
         }
         if (data.StartMip == 0)
         {
@@ -338,7 +358,7 @@ public class TextureConnector :
         this._onPropertiesSet = onSet;
         if (onSet != null)
         {
-            base.UnityAssetIntegrator.EnqueueProcessing(new Action(this.UpdateTextureProperties), this.Asset.HighPriorityIntegration);
+            base.UnityAssetIntegrator.EnqueueProcessing(UpdateTextureProperties, Asset.HighPriorityIntegration);
         }
     }
 
@@ -359,9 +379,21 @@ public class TextureConnector :
 
     private void Destroy()
     {
+        if ((bool)_unityTexture2D)
+		{
+			UnityEngine.Object.DestroyImmediate(_unityTexture2D, allowDestroyingAssets: true);
+		}
+		if ((bool)_unityCubemap)
+		{
+			UnityEngine.Object.DestroyImmediate(_unityCubemap, allowDestroyingAssets: true);
+		}
+		if ((bool)_unityTexture3D)
+		{
+			UnityEngine.Object.DestroyImmediate(_unityTexture3D, allowDestroyingAssets: true);
+		}
         if (this._dx11Resource != null)
         {
-            base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(this.DestroyDX11(this._dx11Resource, this._dx11Tex));
+            base.UnityAssetIntegrator.EnqueueRenderThreadProcessing(DestroyDX11(_dx11Resource, _dx11Tex));
             this._dx11Tex = null;
             this._dx11Resource = null;
         }
@@ -476,8 +508,8 @@ public class TextureConnector :
                 var oldOnDone = format.OnDone;
                 format.OnDone = delegate
                 {
-                    if (oldUnityTex) UnityEngine.Object.Destroy(oldUnityTex);
-                    if (oldUnityCube) UnityEngine.Object.Destroy(oldUnityCube);
+                    if (oldUnityTex) UnityEngine.Object.DestroyImmediate(oldUnityTex);
+                    if (oldUnityCube) UnityEngine.Object.DestroyImmediate(oldUnityCube);
                     oldDX11res?.Dispose();
                     oldDX11tex?.Dispose();
                     oldOnDone(environmentInstanceChanged: true);
