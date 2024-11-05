@@ -52,7 +52,7 @@ public class ApplyChangesCameraPortalConnector : UpdatePacket<CameraPortalConnec
         MeshRenderer = target?.Connector as MeshRendererConnector;
         Engine = owner.Owner.Engine;
 
-        if (target?.Mesh.Target != null && MeshRenderer == null && target.IsChangeDirty) owner.Owner.MarkChangeDirty();
+        if (target?.Mesh.Target != null && MeshRenderer.MeshRenderer.gameObject == null && target.IsChangeDirty) owner.Owner.MarkChangeDirty();
 
         var v = MathX.FilterInvalid(owner.Owner.PlaneNormal);
         if (v.SqrMagnitude < 1E-06f) v = float3.Forward;
@@ -63,8 +63,8 @@ public class ApplyChangesCameraPortalConnector : UpdatePacket<CameraPortalConnec
         OverrideClearFlag = owner.Owner.OverrideClear.Value?.ToUnity();
         OverrideFarClip = owner.Owner.OverrideFarClip.Value;
         OverrideNearClip = owner.Owner.OverrideNearClip.Value;
-        DisablePixelLights = owner.Owner.DisablePerPixelLights.Value;
-        DisableShadows = owner.Owner.DisableShadows.Value;
+        DisablePixelLights = owner.Owner.DisablePerPixelLights;
+        DisableShadows = owner.Owner.DisableShadows;
         var value = owner.Owner.RenderMode.Value;
         if (value != 0 && value == FrooxEngine.CameraPortal.Mode.Portal)
         {
@@ -85,6 +85,10 @@ public class ApplyChangesCameraPortalConnector : UpdatePacket<CameraPortalConnec
             Owner.Cleanup(destroyingWorld: false);
             if (gameObject != null)
             {
+                if (CameraPortalConnector.LayerMask == 0)
+                {
+                    CameraPortalConnector.LayerMask = ~LayerMask.GetMask("Private", "Overlay");
+                }
                 Owner.currentPortal = gameObject.AddComponent<CameraPortal>();
                 Owner.currentPortal.ReflectLayers = CameraPortalConnector.LayerMask;
                 Owner.currentPortal.Engine = Engine;
