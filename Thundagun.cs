@@ -549,14 +549,23 @@ public static class SynchronizationManager
 
         lock (SyncLock)
         {
-            while (_lockResoniteUnlockUnity) Monitor.Wait(SyncLock);
+            while (_lockResoniteUnlockUnity)
+            {
+                if (CurrentSyncMode != SyncMode.Sync) break;
+                // we need some form of polling to see if the timeout has been triggered
+                // or do we?
+                // try removing the wait?
+                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
+            }
             Monitor.Pulse(SyncLock);
+
             _lockResoniteUnlockUnity = true;
         }
 
         
         ResoniteStartTime = DateTime.Now;
     }
+    // might be a little heavy, but most of these operations are fairly light anyway
     public static SyncMode CurrentSyncMode
     {
         get

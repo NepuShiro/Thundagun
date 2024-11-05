@@ -22,7 +22,8 @@ public class RenderQueueProcessor : MonoBehaviour
 
     public void MarkAsCompleted()
     {
-        _batchQueue.Last().IsComplete = true;
+        if (_batchQueue.Count != 0)
+            _batchQueue.Last().IsComplete = true;
     }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
@@ -43,16 +44,8 @@ public class RenderQueueProcessor : MonoBehaviour
         return task.Task;
     }
 
-    private int GetLastBatchTaskCount()
-    {
-        if (_batchQueue.Count == 0)
-            return 0;
-        return _batchQueue.Last().Tasks.Count;
-    }
-
     private void LateUpdate()
     {
-        Thundagun.Msg($"Backmost batch task count: {GetLastBatchTaskCount()}");
         lock (_batchQueue)
         {
             if (_batchQueue.Count == 0)
@@ -87,13 +80,13 @@ public class RenderQueueProcessor : MonoBehaviour
                         renderTask.task.SetException(ex);
                     }
                     timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval))
+                    if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval) && SynchronizationManager.CurrentSyncMode == SyncMode.Desync)
                     {
                         break;
                     }
                 }
                 timeElapsed = (DateTime.Now - startTime).TotalMilliseconds;
-                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval))
+                if (timeElapsed > Thundagun.Config.GetValue(Thundagun.DesyncWorkInterval) && SynchronizationManager.CurrentSyncMode == SyncMode.Desync)
                 {
                     break;
                 }
