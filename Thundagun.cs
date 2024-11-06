@@ -537,10 +537,10 @@ public static class AsyncLogger
 public static class SynchronizationManager
 {
     internal static readonly object SyncLock = new();
-    public static DateTime UnityStartTime { get; internal set; } = DateTime.Now - TimeSpan.FromMilliseconds(10);
-    public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now - TimeSpan.FromMilliseconds(10);
-    public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(10);
-    public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(10);
+    public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
+    public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
+    public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
+    public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     internal static bool _lockResoniteUnlockUnity;
     private static bool _isResoniteStalling = false;
     private static bool _isUnityStalling = false;
