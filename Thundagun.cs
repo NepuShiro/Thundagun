@@ -218,23 +218,12 @@ public static class FrooxEngineRunnerPatch
                         var beforeEngine = DateTime.Now;
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
-                        var resoniteInterval = (DateTime.Now - SynchronizationManager.ResoniteStartTime);
-                        var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate)) + 1));
-                        if (resoniteInterval < ticktime)
-                        {
-                            Task.Delay(ticktime - resoniteInterval);
-                        }
 
                         // I believe this is the last step in the main Resonite update loop
                         SynchronizationManager.OnResoniteUpdate();
                     }
                 });
-                var unityInterval = (DateTime.Now - SynchronizationManager.UnityStartTime);
-                var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)) + 1));
-                if (unityInterval < ticktime)
-                {
-                    Task.Delay(ticktime - unityInterval);
-                }
+
                 // technically not the last or first thing called, but it does happen only once per cycle
                 // less important than on Resonite, where you want all changes to be finished
                 SynchronizationManager.OnUnityUpdate();
@@ -606,6 +595,12 @@ public static class SynchronizationManager
 
         UnityLastUpdateInterval = interval;
 
+        var ticktime = TimeSpan.FromMilliseconds((1000 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
+        if (UnityLastUpdateInterval < ticktime)
+        {
+            Task.Delay(ticktime - UnityLastUpdateInterval);
+        }
+
         UnityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
@@ -631,6 +626,12 @@ public static class SynchronizationManager
         IsResoniteStalling = false;
 
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
+
+        var ticktime = TimeSpan.FromMilliseconds(1000 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
+        if (ResoniteLastUpdateInterval < ticktime)
+        {
+            Task.Delay(ticktime - ResoniteLastUpdateInterval);
+        }
 
         ResoniteStartTime = DateTime.Now;
     }
