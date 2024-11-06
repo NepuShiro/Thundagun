@@ -524,7 +524,7 @@ public static class SynchronizationManager
     public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
     public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
-    internal static bool _lockResoniteUnlockUnity;
+    internal static bool _lockResoniteUnlockUnity = false;
     private static bool _isResoniteStalling = false;
     private static bool _isUnityStalling = false;
 
@@ -565,26 +565,24 @@ public static class SynchronizationManager
 
     }
 
-    public static void OnUnityUpdate()
+    public static void UnlockResonite()
     {
-        EarlyLogger.Log($"OnUnityUpdate");
         lock (SyncLock)
         {
-            EarlyLogger.Log($"SyncLock");
-            if ((bool)(NewConnectors.RenderQueueProcessor.Instance?.GetIsCompleteUnity()))
+            if ((bool)(NewConnectors.RenderQueueProcessor.GetIsCompleteUnity()))
             {
-                EarlyLogger.Log($"IsCompleteUnity");
                 Monitor.Pulse(SyncLock);
 
                 _lockResoniteUnlockUnity = false;
             }
         }
-        EarlyLogger.Log($"Out of Unity sync lock");
+    }
 
+    public static void OnUnityUpdate()
+    {
         TimeSpan interval = DateTime.Now - UnityStartTime;
         if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
         {
-            EarlyLogger.Log($"Unity is not stalling anymore");
             IsUnityStalling = false;
         }
 
@@ -593,32 +591,25 @@ public static class SynchronizationManager
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
         if (UnityLastUpdateInterval < ticktime)
         {
-            EarlyLogger.Log($"Waiting Unity...");
             Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
 
         UnityStartTime = DateTime.Now;
-
-        EarlyLogger.Log($"Finish OnUnityUpdate");
     }
     public static void OnResoniteUpdate()
     {
-        EarlyLogger.Log($"OnResoniteUpdate");
         lock (SyncLock)
         {
             while (_lockResoniteUnlockUnity)
             {
                 Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
-            EarlyLogger.Log($"Exit lock Resonite");
             Monitor.Pulse(SyncLock);
-            EarlyLogger.Log($"Pulse Resonite");
 
             _lockResoniteUnlockUnity = true;
         }
 
-        EarlyLogger.Log($"Starting IsCompleteEngine");
-        NewConnectors.RenderQueueProcessor.Instance?.MarkIsCompleteEngine();
+        NewConnectors.RenderQueueProcessor.MarkIsCompleteEngine();
 
         IsResoniteStalling = false;
 
@@ -627,7 +618,6 @@ public static class SynchronizationManager
         var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
         if (ResoniteLastUpdateInterval < ticktime)
         {
-            EarlyLogger.Log($"Sleeping Resonite");
             Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }
 
