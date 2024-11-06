@@ -61,7 +61,7 @@ public class Thundagun : ResoniteMod
         false, value => value >= 10.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> UseDoubleBuffering =
-    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, letting Unity handle the swapping. Note that this no longer guarantees determinism, as FrooxEngine may break references while Unity is processing the swapped buffer. However, this mode can theoretically improve framerate by ensuring maximal pipelining.", () => false,
+    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, potentially improving the engine tick rate at the risk of less determinism.", () => false,
         false, value => true);
 
     public override void OnEngineInit()

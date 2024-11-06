@@ -6,7 +6,6 @@ using UnityEngine;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
-
 public class RenderQueueProcessor : MonoBehaviour
 {
     public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
@@ -47,6 +46,28 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
+        lock (TaskBuffer)
+        {
+            bool currentBufferingSetting = Thundagun.Config.GetValue(Thundagun.UseDoubleBuffering);
+            if (currentBufferingSetting != useDoubleBuffering)
+            {
+                if (currentBufferingSetting)
+                {
+                    if (Tasks.Count == 0)
+                    {
+                        useDoubleBuffering = true;
+                    }
+                }
+                else
+                {
+                    if (TaskBuffer.Count == 0)
+                    {
+                        useDoubleBuffering = false;
+                    }
+                }
+            }
+        }
+
         lock (Tasks)
         {
             var renderingContext = RenderHelper.CurrentRenderingContext;
@@ -88,11 +109,6 @@ public class RenderQueueProcessor : MonoBehaviour
                         (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
                         TaskBuffer.Clear();
                     }
-                }
-                bool currentBufferingSetting = Thundagun.Config.GetValue(Thundagun.UseDoubleBuffering);
-                if (currentBufferingSetting != useDoubleBuffering)
-                {
-                    useDoubleBuffering = currentBufferingSetting;
                 }
                 engineCompletionStatus.EngineCompleted = false;
             }
