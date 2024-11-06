@@ -545,7 +545,5 @@ public static class SynchronizationManager
         }
 
         ResoniteStartTime = DateTime.Now;
-
-        EarlyLogger.Log($"Reso start");
     }
 }
