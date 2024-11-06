@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
@@ -14,27 +15,55 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private Queue<Batch> _batchQueue = new();
     private TimeSpan LastWorkInterval = TimeSpan.Zero;
+    private static RenderQueueProcessor _instance;
+    public static RenderQueueProcessor Instance
+    {
+        get
+        {
+            return _instance;
+        }
+        private set
+        {
+            _instance = value;
+        }
+    }
 
     // Normally there isn't a constructor here
     public RenderQueueProcessor()
     {
-        Thundagun.MarkAsCompletedAction = MarkAsCompleted;
+        EarlyLogger.Log($"Set RenderQueueProcessor");
+        Instance = this;
     }
 
-    public void MarkAsCompleted()
+    public void MarkIsCompleteEngine()
     {
         if (_batchQueue.Count != 0)
-            _batchQueue.Last().IsComplete = true;
+            _batchQueue.Last().IsCompleteEngine = true;
+    }
+
+    public bool GetIsCompleteUnity()
+    {
+        if (_batchQueue.Count != 0)
+        {
+            bool isCompleteUnity = _batchQueue.Peek().IsCompleteUnity;
+            if (isCompleteUnity)
+            {
+                _batchQueue.Dequeue();
+                return isCompleteUnity;
+            }
+        }
+        return false;
     }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
+        EarlyLogger.Log($"Enqueue");
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
         lock (_batchQueue)
         {
-            if (_batchQueue.Count == 0 || _batchQueue.Last().IsComplete)
+            if (_batchQueue.Count == 0)
             {
                 var newBatch = new Batch();
                 _batchQueue.Enqueue(newBatch);
@@ -47,10 +76,12 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
+        EarlyLogger.Log($"LateUpdate");
         lock (_batchQueue)
         {
             if (_batchQueue.Count == 0)
             {
+                EarlyLogger.Log($"No batches");
                 return;
             }
 
@@ -67,14 +98,9 @@ public class RenderQueueProcessor : MonoBehaviour
             {
                 var batch = _batchQueue.Peek();
 
-                // We might not actually need batching anymore, but I'll leave it in for frame consistency?
-                if (!batch.IsComplete && !SynchronizationManager.IsUnityStalling && !SynchronizationManager.IsResoniteStalling)
-                {
-                    return;
-                }
-
                 while (batch.Tasks.Count > 0)
                 {
+                    EarlyLogger.Log($"Batch exists");
                     var renderTask = batch.Tasks.Dequeue();
                     try
                     {
@@ -87,6 +113,7 @@ public class RenderQueueProcessor : MonoBehaviour
                     timeElapsed = (DateTime.Now - startTime);
                     if (timeElapsed > unityAllowedWorkInterval)
                     {
+                        EarlyLogger.Log($"Departing early");
                         break;
                     }
                 }
@@ -95,9 +122,10 @@ public class RenderQueueProcessor : MonoBehaviour
                 {
                     break;
                 }
-                if (batch.IsComplete && batch.Tasks.Count == 0)
+                if (batch.IsCompleteEngine && batch.Tasks.Count == 0)
                 {
-                    _batchQueue.Dequeue();
+                    EarlyLogger.Log($"Unity is done with batch");
+                    batch.IsCompleteUnity = true;
                 }
             }
 
@@ -115,5 +143,6 @@ public class RenderQueueProcessor : MonoBehaviour
 public class Batch
 {
     public Queue<RenderTask> Tasks { get; private set; } = new();
-    public bool IsComplete { get; set; } = false;
+    public bool IsCompleteEngine { get; set; } = false;
+    public bool IsCompleteUnity { get; set; } = false;
 }

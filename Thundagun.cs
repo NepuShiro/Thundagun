@@ -33,8 +33,6 @@ public class Thundagun : ResoniteMod
 
     public static Task FrooxEngineTask;
 
-    public static Action MarkAsCompletedAction;
-
     public static void QueuePacket(IUpdatePacket packet)
     {
         lock (CurrentPackets) CurrentPackets.Enqueue(packet);
@@ -569,27 +567,24 @@ public static class SynchronizationManager
 
     public static void OnUnityUpdate()
     {
+        EarlyLogger.Log($"OnUnityUpdate");
         lock (SyncLock)
         {
-            while (!_lockResoniteUnlockUnity)
+            EarlyLogger.Log($"SyncLock");
+            if ((bool)(NewConnectors.RenderQueueProcessor.Instance?.GetIsCompleteUnity()))
             {
-                if (IsResoniteStalling || IsUnityStalling)
-                    break;
+                EarlyLogger.Log($"IsCompleteUnity");
+                Monitor.Pulse(SyncLock);
 
-                // we need some form of polling to see if the timeout has been triggered
-                // or do we?
-                // try removing the delay?
-                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
+                _lockResoniteUnlockUnity = false;
             }
-
-            Monitor.Pulse(SyncLock);
-
-            _lockResoniteUnlockUnity = false;
         }
+        EarlyLogger.Log($"Out of Unity sync lock");
 
         TimeSpan interval = DateTime.Now - UnityStartTime;
         if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
         {
+            EarlyLogger.Log($"Unity is not stalling anymore");
             IsUnityStalling = false;
         }
 
@@ -598,30 +593,32 @@ public static class SynchronizationManager
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
         if (UnityLastUpdateInterval < ticktime)
         {
+            EarlyLogger.Log($"Waiting Unity...");
             Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
 
         UnityStartTime = DateTime.Now;
+
+        EarlyLogger.Log($"Finish OnUnityUpdate");
     }
     public static void OnResoniteUpdate()
     {
+        EarlyLogger.Log($"OnResoniteUpdate");
         lock (SyncLock)
         {
             while (_lockResoniteUnlockUnity)
             {
-                if (IsUnityStalling)
-                    break;
-                // we need some form of polling to see if the timeout has been triggered
-                // or do we?
-                // try removing the delay?
                 Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
+            EarlyLogger.Log($"Exit lock Resonite");
             Monitor.Pulse(SyncLock);
+            EarlyLogger.Log($"Pulse Resonite");
 
             _lockResoniteUnlockUnity = true;
         }
 
-        Thundagun.MarkAsCompletedAction?.Invoke();
+        EarlyLogger.Log($"Starting IsCompleteEngine");
+        NewConnectors.RenderQueueProcessor.Instance?.MarkIsCompleteEngine();
 
         IsResoniteStalling = false;
 
@@ -630,6 +627,7 @@ public static class SynchronizationManager
         var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
         if (ResoniteLastUpdateInterval < ticktime)
         {
+            EarlyLogger.Log($"Sleeping Resonite");
             Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }
 
