@@ -13,6 +13,7 @@ public class RenderQueueProcessor : MonoBehaviour
     public RenderConnector Connector;
 
     private Queue<Batch> _batchQueue = new();
+    private TimeSpan LastWorkInterval = TimeSpan.FromMilliseconds(10);
 
     // Normally there isn't a constructor here
     public RenderQueueProcessor()
@@ -59,11 +60,15 @@ public class RenderQueueProcessor : MonoBehaviour
             DateTime startTime = DateTime.Now;
             TimeSpan timeElapsed;
 
+            TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
+            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval)) - unityLastNonWorkInterval;
+
             while (_batchQueue.Count > 0)
             {
                 var batch = _batchQueue.Peek();
 
-                if (!batch.IsComplete && SynchronizationManager.CurrentSyncMode == SyncMode.Async)
+                // We might not actually need batching anymore, but I'll leave it in for frame consistency?
+                if (!batch.IsComplete)
                 {
                     return;
                 }
@@ -80,15 +85,14 @@ public class RenderQueueProcessor : MonoBehaviour
                         renderTask.task.SetException(ex);
                     }
                     timeElapsed = (DateTime.Now - startTime);
-                    if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
+                    if (timeElapsed > unityAllowedWorkInterval)
                     {
                         break;
                     }
                 }
                 timeElapsed = (DateTime.Now - startTime);
-                if (timeElapsed.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
+                if (timeElapsed > unityAllowedWorkInterval)
                 {
-                    SynchronizationManager.AddUnityWorkTime(timeElapsed);
                     break;
                 }
                 if (batch.IsComplete && batch.Tasks.Count == 0)
@@ -96,6 +100,9 @@ public class RenderQueueProcessor : MonoBehaviour
                     _batchQueue.Dequeue();
                 }
             }
+
+            timeElapsed = (DateTime.Now - startTime);
+            LastWorkInterval = timeElapsed;
 
             if (renderingContext.HasValue)
             {

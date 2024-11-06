@@ -12,11 +12,14 @@ using HarmonyLib;
 using ResoniteModLoader;
 using UnityEngine;
 using UnityFrooxEngineRunner;
+using NLog;
 using Object = UnityEngine.Object;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
+using NLog.Config;
+using NLog.Targets;
 
 namespace Thundagun;
 
@@ -41,7 +44,7 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false, 
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => true, 
             false, value => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<float> LoggingRate =
@@ -56,24 +59,22 @@ public class Thundagun : ResoniteMod
         new("UnityTickRate", "Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000,
             false, value => value > 1);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> SyncToAsyncRatioThreshold =
-        new("SyncToAsyncRatioThreshold", "Sync To Async Ratio Threshold: The frametime ratio threshold to switch from sync to async.", () => 4.0,
+    internal readonly static ModConfigurationKey<double> AsyncThreshold =
+        new("AsyncThreshold", "Async Threshold: The max amount of time in milliseconds Resonite can run for before switching to async.", () => 50.0,
             false, value => value > 1);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> AsyncToDesyncRatioThreshold =
-    new("AsyncToDesyncRatioThreshold", "Async To Desync Ratio Threshold: The frametime ratio threshold to switch from async to desync.", () => 16.0,
+    internal readonly static ModConfigurationKey<double> DesyncThreshold =
+    new("DesyncThreshold", "Desync Threshold: The max amount of time in milliseconds Unity can run for before switching to desync.", () => 500.0,
         false, value => value > 2);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MaxWorkInterval =
-        new("MaxWorkInterval", "Max Work Interval: The max amount of time in milliseconds Unity will spend in total processing changes and waiting on a sync lock.", () => 100.0,
+    internal readonly static ModConfigurationKey<double> MaxUpdateInterval =
+        new("MaxUpdateInterval", "Max Update Interval: The target time in milliseconds to reach for each Unity update in desync mode.", () => 200.0,
             false, value => value < 1000 || value > 1);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> EMAExponent =
-        new("EMAExponent", "EMA Exponent: The exponent used for the exponential moving average for calculating framerate.", () => 0.5f,
-            false, value => value > 0 || value < 1);
 
     public override void OnEngineInit()
     {
+        AsyncLogger.StartLogger();
+
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
 
@@ -485,15 +486,47 @@ public interface IUpdatePacket
 
 public static class AsyncLogger
 {
+    public static void StartLogger()
+    {
+        // dummy implementation to force static constructor to run
+    }
     private static Task asyncLoggerTask;
+    private static readonly NLog.Logger Logger = LogManager.GetCurrentClassLogger();
+
+    private static void ConfigureLogging()
+    {
+        var config = new LoggingConfiguration();
+
+        var fileTarget = new FileTarget("log")
+        {
+            FileName = "C:/users/xenom/Desktop/ThundagunLogs/log_${shortdate}_${time}.txt",
+            Layout = "${longdate} ${uppercase:${level}} ${message}",
+            CreateDirs = true
+        };
+
+        fileTarget.AutoFlush = true;
+
+        config.AddTarget(fileTarget);
+
+        var rule = new LoggingRule("*", LogLevel.Info, fileTarget);
+        config.LoggingRules.Add(rule);
+
+        LogManager.Configuration = config;
+    }
 
     static AsyncLogger()
     {
         asyncLoggerTask = Task.Run(() =>
         {
-            if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
-                Thundagun.Msg($"Unity: {SynchronizationManager.UnityEMA} Resonite: {SynchronizationManager.ResoniteEMA} Mode: {SynchronizationManager.CurrentSyncMode}");
-            Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
+            ConfigureLogging();
+            while (true)
+            {
+                DateTime now = DateTime.Now;
+                if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
+                    Logger.Info(
+                        $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval} IsUnityStalling: {SynchronizationManager.IsUnityStalling} IsResoniteStalling: {SynchronizationManager.IsResoniteStalling}");
+                Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
+            }
         });
     }
 }
@@ -503,40 +536,67 @@ public static class SynchronizationManager
     internal static readonly object SyncLock = new();
     public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
     public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
-    public static TimeSpan UnityWorkTime { get; internal set; }
-
+    public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(100);
+    public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(100);
     internal static bool _lockResoniteUnlockUnity;
-    // is accessing like this thread-safe?
-    public static double UnityEMA { get; internal set; } = 16.67;
-    public static double ResoniteEMA { get; internal set; } = 16.67;
 
-    public static void AddUnityWorkTime(TimeSpan workTime)
+    public static bool IsResoniteStalling
     {
-        UnityWorkTime += workTime;
+        get
+        {
+            if (!IsResoniteStalling)
+            {
+                TimeSpan interval = DateTime.Now - ResoniteStartTime;
+                IsResoniteStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.AsyncThreshold);
+            }
+
+            return IsResoniteStalling;
+        }
+        internal set
+        {
+            IsResoniteStalling = value;
+        }
+    }
+
+    public static bool IsUnityStalling
+    {
+        get
+        {
+            if (!IsUnityStalling)
+            {
+                TimeSpan interval = DateTime.Now - UnityStartTime;
+                IsUnityStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.DesyncThreshold);
+            }
+
+            return IsUnityStalling;
+        }
+        internal set
+        {
+            IsUnityStalling = value;
+        }
+
     }
 
     public static void OnUnityUpdate()
     {
-        var elapsed = (DateTime.Now - UnityStartTime).TotalMilliseconds;
-        double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
-        UnityEMA = alpha * elapsed + (1 - alpha) * UnityEMA;
+        TimeSpan interval = DateTime.Now - UnityStartTime;
+        if (interval.TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval))
+        {
+            IsUnityStalling = false;
+        }
 
-        DateTime lockTime = DateTime.Now;
+        UnityLastUpdateInterval = interval;
 
-        // is it safe to have Unity skip over the lock like this? Only Unity will ever take advantage of the timeout.
         lock (SyncLock)
         {
             while (!_lockResoniteUnlockUnity)
             {
-                // essentially waiting is a kind of simulated workload
-                TimeSpan timeElapsed = (DateTime.Now - lockTime);
-                if (CurrentSyncMode != SyncMode.Sync || (timeElapsed + UnityWorkTime).TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.MaxWorkInterval))
-                {
+                if (IsResoniteStalling || IsUnityStalling)
                     break;
-                }
+
                 // we need some form of polling to see if the timeout has been triggered
                 // or do we?
-                // try removing the wait?
+                // try removing the delay?
                 Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
 
@@ -546,25 +606,24 @@ public static class SynchronizationManager
         }
 
         UnityStartTime = DateTime.Now;
-        UnityWorkTime = TimeSpan.Zero;
     }
     public static void OnResoniteUpdate()
     {
         Thundagun.MarkAsCompletedAction?.Invoke();
 
-        var elapsed = (DateTime.Now - ResoniteStartTime).TotalMilliseconds;
-        double alpha = Mathf.Clamp(Thundagun.Config.GetValue(Thundagun.EMAExponent), 0.001f, 0.999f);
-        ResoniteEMA = alpha * elapsed + (1 - alpha) * ResoniteEMA;
+        IsResoniteStalling = false;
 
+        ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
         lock (SyncLock)
         {
             while (_lockResoniteUnlockUnity)
             {
-                if (CurrentSyncMode != SyncMode.Sync) break;
+                if (IsUnityStalling)
+                    break;
                 // we need some form of polling to see if the timeout has been triggered
                 // or do we?
-                // try removing the wait?
+                // try removing the delay?
                 Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
             }
             Monitor.Pulse(SyncLock);
@@ -572,30 +631,6 @@ public static class SynchronizationManager
             _lockResoniteUnlockUnity = true;
         }
 
-        
         ResoniteStartTime = DateTime.Now;
     }
-    // might be a little heavy, but most of these operations are fairly light anyway
-    public static SyncMode CurrentSyncMode
-    {
-        get
-        {
-            var ratio = UnityEMA / ResoniteEMA;
-            double syncDesyncThreshold = Thundagun.Config.GetValue(Thundagun.SyncToAsyncRatioThreshold);
-            double asyncDesyncThreshold = Thundagun.Config.GetValue(Thundagun.AsyncToDesyncRatioThreshold);
-            if (ratio > asyncDesyncThreshold || 1.0 / ratio > asyncDesyncThreshold)
-                return SyncMode.Desync;
-            else if (ratio > syncDesyncThreshold || 1.0 / ratio > syncDesyncThreshold)
-                return SyncMode.Async;
-            else
-                return SyncMode.Sync;
-        }
-    }
-}
-
-public enum SyncMode
-{
-    Sync,
-    Async,
-    Desync,
 }
