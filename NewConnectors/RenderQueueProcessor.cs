@@ -68,7 +68,7 @@ public class RenderQueueProcessor : MonoBehaviour
                 var batch = _batchQueue.Peek();
 
                 // We might not actually need batching anymore, but I'll leave it in for frame consistency?
-                if (!batch.IsComplete)
+                if (!batch.IsComplete && !SynchronizationManager.IsUnityStalling && !SynchronizationManager.IsResoniteStalling)
                 {
                     return;
                 }
