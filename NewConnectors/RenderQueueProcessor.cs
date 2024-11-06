@@ -55,7 +55,7 @@ public class RenderQueueProcessor : MonoBehaviour
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
             TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
-            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate)) - unityLastNonWorkInterval;
+            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinFramerate)) - unityLastNonWorkInterval;
 
             DateTime startTime = DateTime.Now;
             TimeSpan timeElapsed;
@@ -81,19 +81,11 @@ public class RenderQueueProcessor : MonoBehaviour
 
             timeElapsed = (DateTime.Now - startTime);
             LastWorkInterval = timeElapsed;
-            lock (engineCompletionStatus)
+            if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
             {
-                if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
-                {
-                    // Swap queues and reset completion flag
-                    (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
-                    TaskBuffer.Clear();
-                    engineCompletionStatus.EngineCompleted = false;
-
-                    // Signal Resonite to proceed
-                    Monitor.PulseAll(engineCompletionStatus);
-                    EarlyLogger.Log("Unity completed queue swap, signaled Resonite");
-                }
+                (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
+                TaskBuffer.Clear();
+                engineCompletionStatus.EngineCompleted = false;
             }
 
             if (renderingContext.HasValue)

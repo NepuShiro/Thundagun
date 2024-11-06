@@ -56,13 +56,13 @@ public class Thundagun : ResoniteMod
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
             false, value => value >= 10.0);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinEngineTickRate =
-new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable update rate to target.", () => 10.0,
-    false, value => value >= 10.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinUnityTickRate =
-    new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable framerate to target.", () => 10.0,
+    internal readonly static ModConfigurationKey<double> MinFramerate =
+    new("MinFramerate", "Min Framerate: The min acceptable framerate to target.", () => 10.0,
         false, value => value >= 10.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> UseDoubleBuffering =
+    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, letting Unity handle the swapping. Note that this no longer guarantees determinism, as FrooxEngine may break references while Unity is processing the swapped buffer. However, this mode can theoretically improve framerate by ensuring maximal pipelining.", () => false,
+        false, value => true);
 
     public override void OnEngineInit()
     {
@@ -531,21 +531,11 @@ public static class SynchronizationManager
     {
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
-        lock (NewConnectors.RenderQueueProcessor.engineCompletionStatus)
+        NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
+
+        while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
         {
-            EarlyLogger.Log("Marking as complete and waiting");
-
-            // Set completion flag and notify Unity
-            NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
-            Monitor.PulseAll(NewConnectors.RenderQueueProcessor.engineCompletionStatus);
-
-            // Wait for Unity to complete the queue swap
-            while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
-            {
-                Monitor.Wait(NewConnectors.RenderQueueProcessor.engineCompletionStatus);
-            }
-
-            EarlyLogger.Log("Resonite continues after Unity unlock");
+            Thread.Sleep(TimeSpan.FromMilliseconds(0.1));
         }
 
         var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
