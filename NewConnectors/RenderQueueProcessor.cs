@@ -29,7 +29,6 @@ public class RenderQueueProcessor : MonoBehaviour
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
-        EarlyLogger.Log("Enqueue");
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 

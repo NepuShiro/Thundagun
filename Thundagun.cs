@@ -41,7 +41,7 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => true, 
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false, 
             false, value => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> LoggingRate =
@@ -488,16 +488,12 @@ public static class AsyncLogger
             return;
         asyncLoggerTask = Task.Run(() =>
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .WriteTo.File("ThundagunLogs/logs.txt", rollingInterval: RollingInterval.Minute)
-                .CreateLogger();
             while (true)
             {
                 DateTime now = DateTime.Now;
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
-                    Log.Debug(
+                    EarlyLogger.Log(
                         $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval}");
                 }
 
