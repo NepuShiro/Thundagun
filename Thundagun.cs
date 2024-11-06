@@ -580,6 +580,10 @@ public static class SynchronizationManager
 
     public static void OnUnityUpdate()
     {
+        // after update
+
+        bool isUnityStalling = IsUnityStalling; // force update this basically
+
         TimeSpan interval = DateTime.Now - UnityStartTime;
         if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
         {
@@ -594,10 +598,29 @@ public static class SynchronizationManager
             Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
 
+        // start new update
         UnityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
     {
+        // after update
+
+        bool isResoniteStalling = IsResoniteStalling; // force update this basically
+
+        NewConnectors.RenderQueueProcessor.MarkIsCompleteEngine();
+
+        IsResoniteStalling = false;
+
+        ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
+
+        // wait around a bit to stay on schedule
+        var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
+        if (ResoniteLastUpdateInterval < ticktime)
+        {
+            Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
+        }
+
+        // how does schedule interact with lock behavior? Should it be separate?
         lock (SyncLock)
         {
             while (_lockResoniteUnlockUnity)
@@ -609,18 +632,7 @@ public static class SynchronizationManager
             _lockResoniteUnlockUnity = true;
         }
 
-        NewConnectors.RenderQueueProcessor.MarkIsCompleteEngine();
-
-        IsResoniteStalling = false;
-
-        ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
-
-        var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
-        if (ResoniteLastUpdateInterval < ticktime)
-        {
-            Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
-        }
-
+        // start new update
         ResoniteStartTime = DateTime.Now;
     }
 }
