@@ -4,12 +4,13 @@ using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
+using System.Threading;
 
 namespace Thundagun.NewConnectors;
 
 public class RenderQueueProcessor : MonoBehaviour
 {
-    public static bool IsCompleteEngine { get; set; } = false;
+    public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
     private static RenderQueueProcessor _instance;
     public static RenderQueueProcessor Instance
     {
@@ -22,7 +23,8 @@ public class RenderQueueProcessor : MonoBehaviour
             _instance = value;
         }
     }
-    public Queue<RenderTask> Tasks { get; private set; } = new();
+    public Queue<RenderTask> TaskBuffer { get; private set; } = new Queue<RenderTask>();
+    public Queue<RenderTask> Tasks { get; private set; } = new Queue<RenderTask>();
     public RenderConnector Connector;
     private TimeSpan LastWorkInterval = TimeSpan.Zero;
 
@@ -37,9 +39,9 @@ public class RenderQueueProcessor : MonoBehaviour
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (Tasks)
+        lock (TaskBuffer)
         {
-            Tasks.Enqueue(renderTask);
+            TaskBuffer.Enqueue(renderTask);
         }
 
         return task.Task;
@@ -53,13 +55,14 @@ public class RenderQueueProcessor : MonoBehaviour
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
 
             TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
-            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinFramerate)) - unityLastNonWorkInterval;
+            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate)) - unityLastNonWorkInterval;
 
             DateTime startTime = DateTime.Now;
             TimeSpan timeElapsed;
 
             while (Tasks.Count > 0)
             {
+                EarlyLogger.Log($"Tasks available");
                 var renderTask = Tasks.Dequeue();
                 try
                 {
@@ -78,10 +81,19 @@ public class RenderQueueProcessor : MonoBehaviour
 
             timeElapsed = (DateTime.Now - startTime);
             LastWorkInterval = timeElapsed;
-
-            if (IsCompleteEngine && Tasks.Count == 0)
+            lock (engineCompletionStatus)
             {
-                SynchronizationManager.UnlockResonite();
+                if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
+                {
+                    // Swap queues and reset completion flag
+                    (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
+                    TaskBuffer.Clear();
+                    engineCompletionStatus.EngineCompleted = false;
+
+                    // Signal Resonite to proceed
+                    Monitor.PulseAll(engineCompletionStatus);
+                    EarlyLogger.Log("Unity completed queue swap, signaled Resonite");
+                }
             }
 
             if (renderingContext.HasValue)
@@ -90,4 +102,9 @@ public class RenderQueueProcessor : MonoBehaviour
             }
         }
     }
+}
+
+public class EngineCompletionStatus
+{
+    public bool EngineCompleted = false;
 }
