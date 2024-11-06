@@ -17,6 +17,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="Serilog" Version="4.1.0" />
+    <PackageReference Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageReference Include="Serilog.Sinks.File" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Reference Include="ResoniteModLoader">
       <HintPath Condition="Exists('$(ResonitePath)ResoniteModLoader.dll')">$(ResonitePath)ResoniteModLoader.dll</HintPath>
       <HintPath Condition="Exists('$(ResonitePath)Libraries/ResoniteModLoader.dll')">$(ResonitePath)Libraries/ResoniteModLoader.dll</HintPath>
@@ -94,8 +100,8 @@
   </ItemGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="copy &quot;$(TargetDir)\$(TargetFileName)&quot; &quot;$(ResonitePath)\rml_mods\&quot;" Condition="$([MSBuild]::IsOSPlatform('Windows'))"/>
-    <Exec Command="cp -u &quot;$(TargetDir)/$(TargetFileName)&quot; &quot;$(ResonitePath)/rml_mods/&quot;" Condition="$([MSBuild]::IsOSPlatform('Linux'))"/>
+    <Exec Command="copy &quot;$(TargetDir)\$(TargetFileName)&quot; &quot;$(ResonitePath)\rml_mods\&quot;" Condition="$([MSBuild]::IsOSPlatform('Windows'))" />
+    <Exec Command="cp -u &quot;$(TargetDir)/$(TargetFileName)&quot; &quot;$(ResonitePath)/rml_mods/&quot;" Condition="$([MSBuild]::IsOSPlatform('Linux'))" />
   </Target>
 
 </Project>
