@@ -72,8 +72,6 @@ public class Thundagun : ResoniteMod
 
     public override void OnEngineInit()
     {
-        AsyncLogger.StartLogger();
-
         var harmony = new Harmony("Thundagun");
         Config = GetConfiguration();
 
@@ -589,6 +587,8 @@ public static class SynchronizationManager
     }
     public static void OnResoniteUpdate()
     {
+        AsyncLogger.StartLogger();
+
         Thundagun.MarkAsCompletedAction?.Invoke();
 
         IsResoniteStalling = false;
