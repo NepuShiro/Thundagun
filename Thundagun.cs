@@ -47,25 +47,25 @@ public class Thundagun : ResoniteMod
         new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => true, 
             false, value => true);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> LoggingRate =
-      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f, 
-          false, value => value > 0.001f || value < 1000.0f);
+    internal readonly static ModConfigurationKey<double> LoggingRate =
+      new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0, 
+          false, value => value >= 0.001 || value <= 1000.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MaxEngineTickRate =
         new("MaxEngineTickRate", "Max Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000.0,
-            false, value => value > 10.0);
+            false, value => value >= 10.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MaxUnityTickRate =
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
-            false, value => value > 10.0);
+            false, value => value >= 10.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MinEngineTickRate =
         new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable rate per second at which FrooxEngine should update.", () => 10.0,
-            false, value => value > 5.0);
+            false, value => value >= 10.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MinUnityTickRate =
     new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable rate per second at which Unity should update..", () => 10.0,
-        false, value => value > 5.0);
+        false, value => value >= 10.0);
 
     public override void OnEngineInit()
     {
@@ -595,10 +595,10 @@ public static class SynchronizationManager
 
         UnityLastUpdateInterval = interval;
 
-        var ticktime = TimeSpan.FromMilliseconds((1000 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
+        var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
         if (UnityLastUpdateInterval < ticktime)
         {
-            Task.Delay(ticktime - UnityLastUpdateInterval);
+            Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
 
         UnityStartTime = DateTime.Now;
@@ -627,10 +627,10 @@ public static class SynchronizationManager
 
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
-        var ticktime = TimeSpan.FromMilliseconds(1000 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
+        var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
         if (ResoniteLastUpdateInterval < ticktime)
         {
-            Task.Delay(ticktime - ResoniteLastUpdateInterval);
+            Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }
 
         ResoniteStartTime = DateTime.Now;
