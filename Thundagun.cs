@@ -50,19 +50,11 @@ public class Thundagun : ResoniteMod
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MaxEngineTickRate =
         new("MaxEngineTickRate", "Max Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000.0,
-            false, value => value >= 10.0);
+            false, value => value >= 1.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MaxUnityTickRate =
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
-            false, value => value >= 10.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinFramerate =
-    new("MinFramerate", "Min Framerate: The min acceptable framerate to target.", () => 10.0,
-        false, value => value >= 10.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<bool> UseDoubleBuffering =
-    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, potentially improving the engine tick rate at the risk of less determinism.", () => false,
-        false, value => true);
+            false, value => value >= 1.0);
 
     public override void OnEngineInit()
     {
@@ -512,8 +504,7 @@ public static class SynchronizationManager
 
     public static void OnUnityUpdate()
     {
-        TimeSpan interval = DateTime.Now - UnityStartTime;
-        UnityLastUpdateInterval = interval;
+        UnityLastUpdateInterval = DateTime.Now - UnityStartTime;
 
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
         if (DateTime.Now - UnityStartTime < ticktime)
@@ -526,8 +517,10 @@ public static class SynchronizationManager
     public static void OnResoniteUpdate()
     {
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
-
-        NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
+        lock (NewConnectors.RenderQueueProcessor.engineCompletionStatus)
+        {
+            NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
+        }
 
         while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
         {

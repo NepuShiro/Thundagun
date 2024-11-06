@@ -16,11 +16,8 @@ public class RenderQueueProcessor : MonoBehaviour
         private set { _instance = value; }
     }
 
-    private Queue<RenderTask> TaskBuffer = new Queue<RenderTask>();
     private Queue<RenderTask> Tasks = new Queue<RenderTask>();
     public RenderConnector Connector;
-    private TimeSpan LastWorkInterval = TimeSpan.Zero;
-    private bool useDoubleBuffering = false;
 
     public RenderQueueProcessor()
     {
@@ -32,12 +29,9 @@ public class RenderQueueProcessor : MonoBehaviour
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (TaskBuffer)
+        lock (Tasks)
         {
-            if (useDoubleBuffering)
-                TaskBuffer.Enqueue(renderTask);
-            else
-                Tasks.Enqueue(renderTask);
+            Tasks.Enqueue(renderTask);
         }
 
         return task.Task;
@@ -45,38 +39,22 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        lock (TaskBuffer)
+        lock (engineCompletionStatus)
         {
-            bool currentBufferingSetting = Thundagun.Config.GetValue(Thundagun.UseDoubleBuffering);
-            if (currentBufferingSetting != useDoubleBuffering)
+            if (Tasks.Count == 0 && engineCompletionStatus.EngineCompleted)
             {
-                if (currentBufferingSetting)
-                {
-                    if (Tasks.Count == 0)
-                    {
-                        useDoubleBuffering = true;
-                    }
-                }
-                else
-                {
-                    if (TaskBuffer.Count == 0)
-                    {
-                        useDoubleBuffering = false;
-                    }
-                }
+                engineCompletionStatus.EngineCompleted = false;
             }
+
+            if (!engineCompletionStatus.EngineCompleted)
+                return;
         }
+
 
         lock (Tasks)
         {
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
-
-            TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
-            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinFramerate)) - unityLastNonWorkInterval;
-
-            DateTime startTime = DateTime.Now;
-            TimeSpan timeElapsed;
 
             while (Tasks.Count > 0)
             {
@@ -89,27 +67,6 @@ public class RenderQueueProcessor : MonoBehaviour
                 {
                     renderTask.task.SetException(ex);
                 }
-
-                timeElapsed = DateTime.Now - startTime;
-                if (timeElapsed > unityAllowedWorkInterval)
-                {
-                    break;
-                }
-            }
-
-            LastWorkInterval = DateTime.Now - startTime;
-
-            if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
-            {
-                if (useDoubleBuffering)
-                {
-                    lock (TaskBuffer)
-                    {
-                        (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
-                        TaskBuffer.Clear();
-                    }
-                }
-                engineCompletionStatus.EngineCompleted = false;
             }
 
             if (renderingContext.HasValue)
