@@ -18,7 +18,6 @@ using SlotConnector = Thundagun.NewConnectors.SlotConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 using Serilog;
-using Logger = Serilog.Core.Logger;
 using System.IO;
 
 namespace Thundagun;
@@ -57,12 +56,8 @@ public class Thundagun : ResoniteMod
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
             false, value => value >= 10.0);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinEngineTickRate =
-        new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable rate per second at which FrooxEngine should update.", () => 10.0,
-            false, value => value >= 10.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinUnityTickRate =
-    new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable rate per second at which Unity should update..", () => 10.0,
+    internal readonly static ModConfigurationKey<double> MinFramerate =
+    new("MinFramerate", "Min Framerate: The min acceptable framerate to target.", () => 10.0,
         false, value => value >= 10.0);
 
     public override void OnEngineInit()
@@ -99,9 +94,6 @@ public class Thundagun : ResoniteMod
                 BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
             var field2 = type.GetField("__connectorTypes",
                 BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
-
-            // WorldManager
-            // AudioSystem TODO; check this one again
 
             if (type == typeof(Slot))
             {
@@ -184,12 +176,9 @@ public static class FrooxEngineRunnerPatch
             {
                 firstrunengine = true;
                 
-                //patch both headoutputs
-                
                 PatchHeadOutput(____vrOutput);
                 PatchHeadOutput(____screenOutput);
                 
-                //as a last resort, nuke every single old post-processing component
                 var toRemove = __instance.gameObject.scene.GetRootGameObjects().SelectMany(i => i.GetComponentsInChildren<CameraPostprocessingManager>());
                 foreach (var remove in toRemove)
                 {
@@ -217,13 +206,10 @@ public static class FrooxEngineRunnerPatch
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
 
-                        // I believe this is the last step in the main Resonite update loop
                         SynchronizationManager.OnResoniteUpdate();
                     }
                 });
 
-                // technically not the last or first thing called, but it does happen only once per cycle
-                // less important than on Resonite, where you want all changes to be finished
                 SynchronizationManager.OnUnityUpdate();
                 
                 if (Thundagun.FrooxEngineTask?.Exception is not null) throw Thundagun.FrooxEngineTask.Exception;
@@ -524,62 +510,45 @@ public static class SynchronizationManager
     public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
     public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
-    internal static bool _lockResoniteUnlockUnity = false;
+    internal static bool lockResonite = false;
 
     public static void UnlockResonite()
     {
-        lock (SyncLock)
-        {
-            Monitor.Pulse(SyncLock);
-
-            _lockResoniteUnlockUnity = false;
-        }
+        lockResonite = false;
     }
 
     public static void OnUnityUpdate()
     {
-        // after update
-
         TimeSpan interval = DateTime.Now - UnityStartTime;
         UnityLastUpdateInterval = interval;
 
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
-        if (UnityLastUpdateInterval < ticktime)
+        if (DateTime.Now - UnityStartTime < ticktime)
         {
             Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
 
-        // start new update
         UnityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
     {
-        // after update
-
         NewConnectors.RenderQueueProcessor.IsCompleteEngine = true;
 
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
+ 
+        while (lockResonite)
+        {
+            Thread.Sleep(TimeSpan.FromMilliseconds(0.1));
+        }
 
-        // wait around a bit to stay on schedule
         var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
-        if (ResoniteLastUpdateInterval < ticktime)
+        if (DateTime.Now - ResoniteStartTime < ticktime)
         {
             Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }
 
-        // how does schedule interact with lock behavior? Should it be separate?
-        lock (SyncLock)
-        {
-            while (_lockResoniteUnlockUnity)
-            {
-                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
-            }
-            Monitor.Pulse(SyncLock);
+        lockResonite = true;
 
-            _lockResoniteUnlockUnity = true;
-        }
-
-        // start new update
         ResoniteStartTime = DateTime.Now;
 
         NewConnectors.RenderQueueProcessor.IsCompleteEngine = false;
