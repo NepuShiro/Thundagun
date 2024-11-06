@@ -26,7 +26,6 @@ public class UnityAssetIntegrator : IAssetManagerConnector
     private ConcurrentQueue<Action> _taskQueue = new();
     private Stopwatch _stopwatch = new();
     private double _maxMilliseconds;
-    private Action<int> renderThreadCallback;
     private IntPtr renderThreadPointer;
     public Engine Engine => AssetManager.Engine;
 

@@ -18,7 +18,6 @@ using SlotConnector = Thundagun.NewConnectors.SlotConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 using Serilog;
-using Logger = Serilog.Core.Logger;
 using System.IO;
 
 namespace Thundagun;
@@ -33,8 +32,6 @@ public class Thundagun : ResoniteMod
 
     public static Task FrooxEngineTask;
 
-    public static Action MarkAsCompletedAction;
-
     public static void QueuePacket(IUpdatePacket packet)
     {
         lock (CurrentPackets) CurrentPackets.Enqueue(packet);
@@ -44,7 +41,7 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => true, 
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false, 
             false, value => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> LoggingRate =
@@ -59,13 +56,13 @@ public class Thundagun : ResoniteMod
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
             false, value => value >= 10.0);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinEngineTickRate =
-        new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable rate per second at which FrooxEngine should update.", () => 10.0,
-            false, value => value >= 10.0);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MinUnityTickRate =
-    new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable rate per second at which Unity should update..", () => 10.0,
+    internal readonly static ModConfigurationKey<double> MinFramerate =
+    new("MinFramerate", "Min Framerate: The min acceptable framerate to target.", () => 10.0,
         false, value => value >= 10.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> UseDoubleBuffering =
+    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, potentially improving the engine tick rate at the risk of less determinism.", () => false,
+        false, value => true);
 
     public override void OnEngineInit()
     {
@@ -101,9 +98,6 @@ public class Thundagun : ResoniteMod
                 BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
             var field2 = type.GetField("__connectorTypes",
                 BindingFlags.FlattenHierarchy | BindingFlags.NonPublic | BindingFlags.Static);
-
-            // WorldManager
-            // AudioSystem TODO; check this one again
 
             if (type == typeof(Slot))
             {
@@ -186,12 +180,9 @@ public static class FrooxEngineRunnerPatch
             {
                 firstrunengine = true;
                 
-                //patch both headoutputs
-                
                 PatchHeadOutput(____vrOutput);
                 PatchHeadOutput(____screenOutput);
                 
-                //as a last resort, nuke every single old post-processing component
                 var toRemove = __instance.gameObject.scene.GetRootGameObjects().SelectMany(i => i.GetComponentsInChildren<CameraPostprocessingManager>());
                 foreach (var remove in toRemove)
                 {
@@ -219,13 +210,10 @@ public static class FrooxEngineRunnerPatch
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
 
-                        // I believe this is the last step in the main Resonite update loop
                         SynchronizationManager.OnResoniteUpdate();
                     }
                 });
 
-                // technically not the last or first thing called, but it does happen only once per cycle
-                // less important than on Resonite, where you want all changes to be finished
                 SynchronizationManager.OnUnityUpdate();
                 
                 if (Thundagun.FrooxEngineTask?.Exception is not null) throw Thundagun.FrooxEngineTask.Exception;
@@ -284,7 +272,6 @@ public static class FrooxEngineRunnerPatch
             {
                 Thundagun.Msg($"Exception updating FrooxEngine:\n{ex}");
                 var startwait = DateTime.Now;
-                var i = 0;
                 var wait = new Task(() => Task.Delay(10000));
                 wait.Start();
                 wait.Wait();
@@ -376,6 +363,7 @@ public static class FrooxEngineRunnerPatch
         }
         catch (Exception ex)
         {
+            UniLog.Error($"Exception: {ex}");
             UniLog.Error("Exception disposing the engine:\n" + engine);
         }
         engine = null;
@@ -500,17 +488,13 @@ public static class AsyncLogger
             return;
         asyncLoggerTask = Task.Run(() =>
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .WriteTo.File("ThundagunLogs/logs.txt", rollingInterval: RollingInterval.Minute)
-                .CreateLogger();
             while (true)
             {
                 DateTime now = DateTime.Now;
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
-                    Log.Debug(
-                        $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval} IsUnityStalling: {SynchronizationManager.IsUnityStalling} IsResoniteStalling: {SynchronizationManager.IsResoniteStalling}");
+                    EarlyLogger.Log(
+                        $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval}");
                 }
 
                 Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
@@ -521,82 +505,18 @@ public static class AsyncLogger
 
 public static class SynchronizationManager
 {
-    internal static readonly object SyncLock = new();
     public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
     public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
     public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
-    internal static bool _lockResoniteUnlockUnity;
-    private static bool _isResoniteStalling = false;
-    private static bool _isUnityStalling = false;
-
-    public static bool IsResoniteStalling
-    {
-        get
-        {
-            if (!_isResoniteStalling)
-            {
-                TimeSpan interval = DateTime.Now - ResoniteStartTime;
-                _isResoniteStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinEngineTickRate);
-            }
-
-            return _isResoniteStalling;
-        }
-        internal set
-        {
-            _isResoniteStalling = value;
-        }
-    }
-
-    public static bool IsUnityStalling
-    {
-        get
-        {
-            if (!_isUnityStalling)
-            {
-                TimeSpan interval = DateTime.Now - UnityStartTime;
-                _isUnityStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate);
-            }
-
-            return _isUnityStalling;
-        }
-        internal set
-        {
-            _isUnityStalling = value;
-        }
-
-    }
 
     public static void OnUnityUpdate()
     {
-        lock (SyncLock)
-        {
-            while (!_lockResoniteUnlockUnity)
-            {
-                if (IsResoniteStalling || IsUnityStalling)
-                    break;
-
-                // we need some form of polling to see if the timeout has been triggered
-                // or do we?
-                // try removing the delay?
-                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
-            }
-
-            Monitor.Pulse(SyncLock);
-
-            _lockResoniteUnlockUnity = false;
-        }
-
         TimeSpan interval = DateTime.Now - UnityStartTime;
-        if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
-        {
-            IsUnityStalling = false;
-        }
-
         UnityLastUpdateInterval = interval;
 
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
-        if (UnityLastUpdateInterval < ticktime)
+        if (DateTime.Now - UnityStartTime < ticktime)
         {
             Thread.Sleep(ticktime - UnityLastUpdateInterval);
         }
@@ -605,30 +525,17 @@ public static class SynchronizationManager
     }
     public static void OnResoniteUpdate()
     {
-        lock (SyncLock)
-        {
-            while (_lockResoniteUnlockUnity)
-            {
-                if (IsUnityStalling)
-                    break;
-                // we need some form of polling to see if the timeout has been triggered
-                // or do we?
-                // try removing the delay?
-                Monitor.Wait(SyncLock, TimeSpan.FromMilliseconds(0.1));
-            }
-            Monitor.Pulse(SyncLock);
-
-            _lockResoniteUnlockUnity = true;
-        }
-
-        Thundagun.MarkAsCompletedAction?.Invoke();
-
-        IsResoniteStalling = false;
-
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
+        NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
+
+        while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
+        {
+            Thread.Sleep(TimeSpan.FromMilliseconds(0.1));
+        }
+
         var ticktime = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate));
-        if (ResoniteLastUpdateInterval < ticktime)
+        if (DateTime.Now - ResoniteStartTime < ticktime)
         {
             Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }

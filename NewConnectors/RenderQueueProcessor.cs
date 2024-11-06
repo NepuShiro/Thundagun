@@ -1,30 +1,30 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
-
 public class RenderQueueProcessor : MonoBehaviour
 {
-    public RenderConnector Connector;
-
-    private Queue<Batch> _batchQueue = new();
-    private TimeSpan LastWorkInterval = TimeSpan.Zero;
-
-    // Normally there isn't a constructor here
-    public RenderQueueProcessor()
+    public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
+    private static RenderQueueProcessor _instance;
+    public static RenderQueueProcessor Instance
     {
-        Thundagun.MarkAsCompletedAction = MarkAsCompleted;
+        get { return _instance; }
+        private set { _instance = value; }
     }
 
-    public void MarkAsCompleted()
+    private Queue<RenderTask> TaskBuffer = new Queue<RenderTask>();
+    private Queue<RenderTask> Tasks = new Queue<RenderTask>();
+    public RenderConnector Connector;
+    private TimeSpan LastWorkInterval = TimeSpan.Zero;
+    private bool useDoubleBuffering = false;
+
+    public RenderQueueProcessor()
     {
-        if (_batchQueue.Count != 0)
-            _batchQueue.Last().IsComplete = true;
+        Instance = this;
     }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
@@ -32,14 +32,12 @@ public class RenderQueueProcessor : MonoBehaviour
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (_batchQueue)
+        lock (TaskBuffer)
         {
-            if (_batchQueue.Count == 0 || _batchQueue.Last().IsComplete)
-            {
-                var newBatch = new Batch();
-                _batchQueue.Enqueue(newBatch);
-            }
-            _batchQueue.Last().Tasks.Enqueue(renderTask);
+            if (useDoubleBuffering)
+                TaskBuffer.Enqueue(renderTask);
+            else
+                Tasks.Enqueue(renderTask);
         }
 
         return task.Task;
@@ -47,62 +45,72 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        lock (_batchQueue)
+        lock (TaskBuffer)
         {
-            if (_batchQueue.Count == 0)
+            bool currentBufferingSetting = Thundagun.Config.GetValue(Thundagun.UseDoubleBuffering);
+            if (currentBufferingSetting != useDoubleBuffering)
             {
-                return;
+                if (currentBufferingSetting)
+                {
+                    if (Tasks.Count == 0)
+                    {
+                        useDoubleBuffering = true;
+                    }
+                }
+                else
+                {
+                    if (TaskBuffer.Count == 0)
+                    {
+                        useDoubleBuffering = false;
+                    }
+                }
             }
+        }
 
+        lock (Tasks)
+        {
             var renderingContext = RenderHelper.CurrentRenderingContext;
             RenderHelper.BeginRenderContext(RenderingContext.RenderToAsset);
+
+            TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
+            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinFramerate)) - unityLastNonWorkInterval;
 
             DateTime startTime = DateTime.Now;
             TimeSpan timeElapsed;
 
-            TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
-            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate)) - unityLastNonWorkInterval;
-
-            while (_batchQueue.Count > 0)
+            while (Tasks.Count > 0)
             {
-                var batch = _batchQueue.Peek();
-
-                // We might not actually need batching anymore, but I'll leave it in for frame consistency?
-                if (!batch.IsComplete && !SynchronizationManager.IsUnityStalling && !SynchronizationManager.IsResoniteStalling)
+                var renderTask = Tasks.Dequeue();
+                try
                 {
-                    return;
+                    renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
+                }
+                catch (Exception ex)
+                {
+                    renderTask.task.SetException(ex);
                 }
 
-                while (batch.Tasks.Count > 0)
-                {
-                    var renderTask = batch.Tasks.Dequeue();
-                    try
-                    {
-                        renderTask.task.SetResult(Connector.RenderImmediate(renderTask.settings));
-                    }
-                    catch (Exception ex)
-                    {
-                        renderTask.task.SetException(ex);
-                    }
-                    timeElapsed = (DateTime.Now - startTime);
-                    if (timeElapsed > unityAllowedWorkInterval)
-                    {
-                        break;
-                    }
-                }
-                timeElapsed = (DateTime.Now - startTime);
+                timeElapsed = DateTime.Now - startTime;
                 if (timeElapsed > unityAllowedWorkInterval)
                 {
                     break;
                 }
-                if (batch.IsComplete && batch.Tasks.Count == 0)
-                {
-                    _batchQueue.Dequeue();
-                }
             }
 
-            timeElapsed = (DateTime.Now - startTime);
-            LastWorkInterval = timeElapsed;
+            LastWorkInterval = DateTime.Now - startTime;
+
+            if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
+            {
+                if (useDoubleBuffering)
+                {
+                    lock (TaskBuffer)
+                    {
+                        (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
+                        TaskBuffer.Clear();
+                    }
+                }
+                engineCompletionStatus.EngineCompleted = false;
+            }
 
             if (renderingContext.HasValue)
             {
@@ -112,8 +120,7 @@ public class RenderQueueProcessor : MonoBehaviour
     }
 }
 
-public class Batch
+public class EngineCompletionStatus
 {
-    public Queue<RenderTask> Tasks { get; private set; } = new();
-    public bool IsComplete { get; set; } = false;
+    public bool EngineCompleted = false;
 }
