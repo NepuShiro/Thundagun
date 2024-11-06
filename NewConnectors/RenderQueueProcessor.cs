@@ -11,8 +11,7 @@ namespace Thundagun.NewConnectors;
 public class RenderQueueProcessor : MonoBehaviour
 {
     public Queue<RenderTask> Tasks { get; private set; } = new();
-    public bool IsCompleteEngine { get; set; } = false;
-    public bool IsCompleteUnity { get; set; } = false;
+    public static bool IsCompleteEngine { get; set; } = false;
 
     public RenderConnector Connector;
     private TimeSpan LastWorkInterval = TimeSpan.Zero;
@@ -33,28 +32,6 @@ public class RenderQueueProcessor : MonoBehaviour
     public RenderQueueProcessor()
     {
         Instance = this;
-    }
-
-    // convenience method
-    public static void MarkIsCompleteEngine()
-    {
-        RenderQueueProcessor instance = Instance;
-        Instance.IsCompleteEngine = true;
-    }
-
-    // convenience method
-    public static bool GetIsCompleteUnity()
-    {
-        RenderQueueProcessor instance = Instance;
-        if (instance != null)
-        {
-            if (instance.Tasks.Count != 0)
-            {
-                return instance.IsCompleteUnity;
-            }
-            return false;
-        }
-        return false;
     }
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
@@ -106,17 +83,15 @@ public class RenderQueueProcessor : MonoBehaviour
                     break;
                 }
             }
-            timeElapsed = (DateTime.Now - startTime);
-            if (IsCompleteEngine && Tasks.Count == 0)
-            {
-                IsCompleteUnity = true;
-            }
 
             timeElapsed = (DateTime.Now - startTime);
             LastWorkInterval = timeElapsed;
 
-            // end critical region
-            SynchronizationManager.UnlockResonite();
+            timeElapsed = (DateTime.Now - startTime);
+            if (IsCompleteEngine && Tasks.Count == 0)
+            {
+                SynchronizationManager.UnlockResonite();
+            }
 
             if (renderingContext.HasValue)
             {

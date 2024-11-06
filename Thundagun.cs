@@ -282,7 +282,6 @@ public static class FrooxEngineRunnerPatch
             {
                 Thundagun.Msg($"Exception updating FrooxEngine:\n{ex}");
                 var startwait = DateTime.Now;
-                var i = 0;
                 var wait = new Task(() => Task.Delay(10000));
                 wait.Start();
                 wait.Wait();
@@ -374,6 +373,7 @@ public static class FrooxEngineRunnerPatch
         }
         catch (Exception ex)
         {
+            UniLog.Error($"Exception: {ex}");
             UniLog.Error("Exception disposing the engine:\n" + engine);
         }
         engine = null;
@@ -508,7 +508,7 @@ public static class AsyncLogger
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
                     Log.Debug(
-                        $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval} IsUnityStalling: {SynchronizationManager.IsUnityStalling} IsResoniteStalling: {SynchronizationManager.IsResoniteStalling}");
+                        $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval}");
                 }
 
                 Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
@@ -525,56 +525,14 @@ public static class SynchronizationManager
     public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     internal static bool _lockResoniteUnlockUnity = false;
-    private static bool _isResoniteStalling = false;
-    private static bool _isUnityStalling = false;
-
-    public static bool IsResoniteStalling
-    {
-        get
-        {
-            if (!_isResoniteStalling)
-            {
-                TimeSpan interval = DateTime.Now - ResoniteStartTime;
-                _isResoniteStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinEngineTickRate);
-            }
-
-            return _isResoniteStalling;
-        }
-        internal set
-        {
-            _isResoniteStalling = value;
-        }
-    }
-
-    public static bool IsUnityStalling
-    {
-        get
-        {
-            if (!_isUnityStalling)
-            {
-                TimeSpan interval = DateTime.Now - UnityStartTime;
-                _isUnityStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate);
-            }
-
-            return _isUnityStalling;
-        }
-        internal set
-        {
-            _isUnityStalling = value;
-        }
-
-    }
 
     public static void UnlockResonite()
     {
         lock (SyncLock)
         {
-            if ((bool)(NewConnectors.RenderQueueProcessor.GetIsCompleteUnity()))
-            {
-                Monitor.Pulse(SyncLock);
+            Monitor.Pulse(SyncLock);
 
-                _lockResoniteUnlockUnity = false;
-            }
+            _lockResoniteUnlockUnity = false;
         }
     }
 
@@ -582,14 +540,7 @@ public static class SynchronizationManager
     {
         // after update
 
-        bool isUnityStalling = IsUnityStalling; // force update this basically
-
         TimeSpan interval = DateTime.Now - UnityStartTime;
-        if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
-        {
-            IsUnityStalling = false;
-        }
-
         UnityLastUpdateInterval = interval;
 
         var ticktime = TimeSpan.FromMilliseconds((1000.0 / Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)));
@@ -605,11 +556,7 @@ public static class SynchronizationManager
     {
         // after update
 
-        bool isResoniteStalling = IsResoniteStalling; // force update this basically
-
-        NewConnectors.RenderQueueProcessor.MarkIsCompleteEngine();
-
-        IsResoniteStalling = false;
+        NewConnectors.RenderQueueProcessor.IsCompleteEngine = true;
 
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
@@ -634,5 +581,7 @@ public static class SynchronizationManager
 
         // start new update
         ResoniteStartTime = DateTime.Now;
+
+        NewConnectors.RenderQueueProcessor.IsCompleteEngine = false;
     }
 }
