@@ -114,6 +114,11 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
             ShadowCastingMode = owner.Owner.ShadowCastMode.Value.ToUnity();
             MotionVectorModeChanged = owner.Owner.MotionVectorMode.GetWasChangedAndClear();
             MotionVectorMode = owner.Owner.MotionVectorMode.Value.ToUnity();
+            Instantiated = false;
+            if (owner.MeshRenderer == null)
+            {
+                Instantiated = true;
+            }
         }
     }
 
@@ -126,7 +131,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
         }
         else
         {
-            Instantiated = false;
+            //Instantiated = false;
             if (Owner.MeshRenderer == null)
             {
                 var gameObject = new GameObject("");
@@ -136,7 +141,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                     Owner.MeshFilter = gameObject.AddComponent<MeshFilter>();
                 Owner.MeshRenderer = gameObject.AddComponent<TU>();
                 Owner.OnAttachRenderer();
-                Instantiated = true;
+                //Instantiated = true;
             }
 
             if (MeshWasChanged || Instantiated)
@@ -170,11 +175,11 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
 
             if (MaterialPropertyBlocksChanged || flag)
             {
-                if (Owner.Owner.MaterialPropertyBlocks.Count > 0)
+                if (MaterialPropertyBlocks.Count > 0)
                 {
                     for (var i = 0; i < MaterialCount; i++)
                     {
-                        if (i < Owner.Owner.MaterialPropertyBlocks.Count)
+                        if (i < MaterialPropertyBlocks.Count)
                         {
                             var materialPropertyBlock = (MaterialPropertyBlocks[i] as MaterialPropertyBlockConnector)?.UnityBlock;
                             Owner.MeshRenderer.SetPropertyBlock(materialPropertyBlock, i);

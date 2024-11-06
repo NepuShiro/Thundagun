@@ -2,6 +2,7 @@
 using System;
 using System.Linq;
 using UnityFrooxEngineRunner;
+using System.Collections.Generic;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -130,6 +131,18 @@ public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> whe
 			rtoConn.TargetPosition = rtoConn.Owner.PositionOverride.Value?.ToUnity();
 			rtoConn.TargetRotation = rtoConn.Owner.RotationOverride.Value?.ToUnity();
 			rtoConn.TargetScale = rtoConn.Owner.ScaleOverride.Value?.ToUnity();
+		}
+		else if (owner is RenderMaterialOverride rmo)
+		{
+			var rmoConn = rmo.Connector as RenderMaterialOverrideConnector;
+			rmoConn.mesh = rmo.Renderer.Target?.Connector as IRendererConnector;
+			rmoConn.OverridesCount = rmo.Overrides.Count;
+			List<RenderMaterialOverrideConnector.RmoMaterialOverride> list = new();
+			foreach (var rmoOverride in rmo.Overrides)
+			{
+				list.Add(new RenderMaterialOverrideConnector.RmoMaterialOverride { index = rmoOverride.Index.Value, replacement = rmoOverride.Material.Target });
+			}
+			rmoConn.RmoOverrides = list;
 		}
 	}
 

@@ -224,7 +224,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
         var skinnedBounds = SkinnedBounds;
         if (MeshWasChanged || Skinned._currentBoundsMethod != skinnedBounds || BoundsChanged)
         {
-            if (skinnedBounds != 0 && skinnedBounds != SkinnedBounds.Proxy &&
+            if (skinnedBounds != SkinnedBounds.Static && skinnedBounds != SkinnedBounds.Proxy &&
                 skinnedBounds != SkinnedBounds.Explicit)
             {
                 if (Skinned._boundsUpdater == null)
