@@ -12,14 +12,13 @@ using HarmonyLib;
 using ResoniteModLoader;
 using UnityEngine;
 using UnityFrooxEngineRunner;
-using NLog;
 using Object = UnityEngine.Object;
 using RenderConnector = Thundagun.NewConnectors.RenderConnector;
 using SlotConnector = Thundagun.NewConnectors.SlotConnector;
 using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
-using NLog.Config;
-using NLog.Targets;
+using Serilog;
+using Logger = Serilog.Core.Logger;
 
 namespace Thundagun;
 
@@ -486,45 +485,26 @@ public interface IUpdatePacket
 
 public static class AsyncLogger
 {
+    private static Task asyncLoggerTask;
     public static void StartLogger()
     {
-        // dummy implementation to force static constructor to run
-    }
-    private static Task asyncLoggerTask;
-    private static readonly NLog.Logger Logger = LogManager.GetCurrentClassLogger();
-
-    private static void ConfigureLogging()
-    {
-        var config = new LoggingConfiguration();
-
-        var fileTarget = new FileTarget("log")
-        {
-            FileName = "C:/users/xenom/Desktop/ThundagunLogs/log_${shortdate}_${time}.txt",
-            Layout = "${longdate} ${uppercase:${level}} ${message}",
-            CreateDirs = true
-        };
-
-        fileTarget.AutoFlush = true;
-
-        config.AddTarget(fileTarget);
-
-        var rule = new LoggingRule("*", LogLevel.Info, fileTarget);
-        config.LoggingRules.Add(rule);
-
-        LogManager.Configuration = config;
-    }
-
-    static AsyncLogger()
-    {
+        if (asyncLoggerTask is not null)
+            return;
         asyncLoggerTask = Task.Run(() =>
         {
-            ConfigureLogging();
+            Log.Logger = new LoggerConfiguration()
+                .MinimumLevel.Debug()
+                .WriteTo.File("ThundagunLogs/logs.txt", rollingInterval: RollingInterval.Minute)
+                .CreateLogger();
             while (true)
             {
                 DateTime now = DateTime.Now;
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
-                    Logger.Info(
+                {
+                    Log.Debug(
                         $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval} IsUnityStalling: {SynchronizationManager.IsUnityStalling} IsResoniteStalling: {SynchronizationManager.IsResoniteStalling}");
+                }
+
                 Thread.Sleep((int)(1000.0 / Thundagun.Config.GetValue(Thundagun.LoggingRate)));
             }
         });
