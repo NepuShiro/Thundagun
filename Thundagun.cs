@@ -51,21 +51,21 @@ public class Thundagun : ResoniteMod
       new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f, 
           false, value => value > 0.001f || value < 1000.0f);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> MaxEngineTickRate =
-        new("MaxEngineTickRate", "Max Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000,
-            false, value => value > 1);
+    internal readonly static ModConfigurationKey<double> MaxEngineTickRate =
+        new("MaxEngineTickRate", "Max Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000.0,
+            false, value => value > 10.0);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> MaxUnityTickRate =
-        new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000,
-            false, value => value > 1);
+    internal readonly static ModConfigurationKey<double> MaxUnityTickRate =
+        new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
+            false, value => value > 10.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MinEngineTickRate =
         new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable rate per second at which FrooxEngine should update.", () => 10.0,
-            false, value => value > 1);
+            false, value => value > 5.0);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> MinUnityTickRate =
     new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable rate per second at which Unity should update..", () => 10.0,
-        false, value => value > 2);
+        false, value => value > 5.0);
 
     public override void OnEngineInit()
     {
