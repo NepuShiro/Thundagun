@@ -41,7 +41,7 @@ public class Thundagun : ResoniteMod
 
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<bool> DebugLogging =
-        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => true, 
+        new("DebugLogging", "Debug Logging: Whether to enable debug logging.", () => false, 
             false, value => true);
     [AutoRegisterConfigKey]
     internal readonly static ModConfigurationKey<double> LoggingRate =
@@ -59,6 +59,10 @@ public class Thundagun : ResoniteMod
     internal readonly static ModConfigurationKey<double> MinFramerate =
     new("MinFramerate", "Min Framerate: The min acceptable framerate to target.", () => 10.0,
         false, value => value >= 10.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> UseDoubleBuffering =
+    new("UseDoubleBuffering", "Use Double Buffering: Allow tasks to be placed in a buffer, potentially improving the engine tick rate at the risk of less determinism.", () => false,
+        false, value => true);
 
     public override void OnEngineInit()
     {
@@ -484,16 +488,12 @@ public static class AsyncLogger
             return;
         asyncLoggerTask = Task.Run(() =>
         {
-            Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Information()
-                .WriteTo.File("ThundagunLogs/logs.txt", rollingInterval: RollingInterval.Minute)
-                .CreateLogger();
             while (true)
             {
                 DateTime now = DateTime.Now;
                 if (Thundagun.Config.GetValue(Thundagun.DebugLogging))
                 {
-                    Log.Debug(
+                    EarlyLogger.Log(
                         $"Unity current: {now - SynchronizationManager.UnityStartTime} Resonite current: {now - SynchronizationManager.ResoniteStartTime} UnityLastUpdateInterval: {SynchronizationManager.UnityLastUpdateInterval} ResoniteLastUpdateInterval: {SynchronizationManager.ResoniteLastUpdateInterval}");
                 }
 
@@ -505,17 +505,10 @@ public static class AsyncLogger
 
 public static class SynchronizationManager
 {
-    internal static readonly object SyncLock = new();
     public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
     public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
     public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
     public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
-    internal static bool lockResonite = false;
-
-    public static void UnlockResonite()
-    {
-        lockResonite = false;
-    }
 
     public static void OnUnityUpdate()
     {
@@ -532,11 +525,11 @@ public static class SynchronizationManager
     }
     public static void OnResoniteUpdate()
     {
-        NewConnectors.RenderQueueProcessor.IsCompleteEngine = true;
-
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
- 
-        while (lockResonite)
+
+        NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
+
+        while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
         {
             Thread.Sleep(TimeSpan.FromMilliseconds(0.1));
         }
@@ -547,10 +540,6 @@ public static class SynchronizationManager
             Thread.Sleep(ticktime - ResoniteLastUpdateInterval);
         }
 
-        lockResonite = true;
-
         ResoniteStartTime = DateTime.Now;
-
-        NewConnectors.RenderQueueProcessor.IsCompleteEngine = false;
     }
 }

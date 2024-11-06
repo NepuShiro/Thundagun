@@ -6,25 +6,21 @@ using UnityEngine;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
-
 public class RenderQueueProcessor : MonoBehaviour
 {
-    public static bool IsCompleteEngine { get; set; } = false;
+    public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
     private static RenderQueueProcessor _instance;
     public static RenderQueueProcessor Instance
     {
-        get
-        {
-            return _instance;
-        }
-        private set
-        {
-            _instance = value;
-        }
+        get { return _instance; }
+        private set { _instance = value; }
     }
-    public Queue<RenderTask> Tasks { get; private set; } = new();
+
+    private Queue<RenderTask> TaskBuffer = new Queue<RenderTask>();
+    private Queue<RenderTask> Tasks = new Queue<RenderTask>();
     public RenderConnector Connector;
     private TimeSpan LastWorkInterval = TimeSpan.Zero;
+    private bool useDoubleBuffering = false;
 
     public RenderQueueProcessor()
     {
@@ -33,13 +29,15 @@ public class RenderQueueProcessor : MonoBehaviour
 
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
-        EarlyLogger.Log($"Enqueue");
         var task = new TaskCompletionSource<byte[]>();
         var renderTask = new RenderTask(settings, task);
 
-        lock (Tasks)
+        lock (TaskBuffer)
         {
-            Tasks.Enqueue(renderTask);
+            if (useDoubleBuffering)
+                TaskBuffer.Enqueue(renderTask);
+            else
+                Tasks.Enqueue(renderTask);
         }
 
         return task.Task;
@@ -47,6 +45,28 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
+        lock (TaskBuffer)
+        {
+            bool currentBufferingSetting = Thundagun.Config.GetValue(Thundagun.UseDoubleBuffering);
+            if (currentBufferingSetting != useDoubleBuffering)
+            {
+                if (currentBufferingSetting)
+                {
+                    if (Tasks.Count == 0)
+                    {
+                        useDoubleBuffering = true;
+                    }
+                }
+                else
+                {
+                    if (TaskBuffer.Count == 0)
+                    {
+                        useDoubleBuffering = false;
+                    }
+                }
+            }
+        }
+
         lock (Tasks)
         {
             var renderingContext = RenderHelper.CurrentRenderingContext;
@@ -69,19 +89,27 @@ public class RenderQueueProcessor : MonoBehaviour
                 {
                     renderTask.task.SetException(ex);
                 }
-                timeElapsed = (DateTime.Now - startTime);
+
+                timeElapsed = DateTime.Now - startTime;
                 if (timeElapsed > unityAllowedWorkInterval)
                 {
                     break;
                 }
             }
 
-            timeElapsed = (DateTime.Now - startTime);
-            LastWorkInterval = timeElapsed;
+            LastWorkInterval = DateTime.Now - startTime;
 
-            if (IsCompleteEngine && Tasks.Count == 0)
+            if (engineCompletionStatus.EngineCompleted && Tasks.Count == 0)
             {
-                SynchronizationManager.UnlockResonite();
+                if (useDoubleBuffering)
+                {
+                    lock (TaskBuffer)
+                    {
+                        (Tasks, TaskBuffer) = (TaskBuffer, Tasks);
+                        TaskBuffer.Clear();
+                    }
+                }
+                engineCompletionStatus.EngineCompleted = false;
             }
 
             if (renderingContext.HasValue)
@@ -90,4 +118,9 @@ public class RenderQueueProcessor : MonoBehaviour
             }
         }
     }
+}
+
+public class EngineCompletionStatus
+{
+    public bool EngineCompleted = false;
 }
