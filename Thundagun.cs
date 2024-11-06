@@ -19,6 +19,7 @@ using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 using Serilog;
 using Logger = Serilog.Core.Logger;
+using System.IO;
 
 namespace Thundagun;
 
@@ -26,7 +27,7 @@ public class Thundagun : ResoniteMod
 {
     public override string Name => "Thundagun";
     public override string Author => "Fro Zen, 989onan, DoubleStyx, Nytra";
-    public override string Version => "1.0.0";
+    public override string Version => "1.0.0-alpha";
     
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
@@ -90,6 +91,8 @@ public class Thundagun : ResoniteMod
         harmony.PatchAll();
 
         PostProcessingInterface.SetupCamera = NewConnectors.CameraInitializer.SetupCamera;
+
+        AsyncLogger.StartLogger();
     }
 
     public static void PatchEngineTypes()
@@ -481,6 +484,28 @@ public interface IUpdatePacket
     public void Update();
 }
 
+
+public static class EarlyLogger
+{
+    private static readonly string logFilePath = "ThundagunLogs/log.txt";
+
+    public static void Log(string message)
+    {
+        try
+        {
+            using (StreamWriter writer = new StreamWriter(logFilePath, append: true))
+            {
+                writer.WriteLine($"{DateTime.Now:yyyy-MM-dd HH:mm:ss} - {message}");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Failed to write to log: {ex.Message}");
+        }
+    }
+}
+
+
 public static class AsyncLogger
 {
     private static Task asyncLoggerTask;
@@ -491,7 +516,7 @@ public static class AsyncLogger
         asyncLoggerTask = Task.Run(() =>
         {
             Log.Logger = new LoggerConfiguration()
-                .MinimumLevel.Debug()
+                .MinimumLevel.Information()
                 .WriteTo.File("ThundagunLogs/logs.txt", rollingInterval: RollingInterval.Minute)
                 .CreateLogger();
             while (true)
@@ -512,27 +537,29 @@ public static class AsyncLogger
 public static class SynchronizationManager
 {
     internal static readonly object SyncLock = new();
-    public static DateTime UnityStartTime { get; internal set; } = DateTime.Now;
-    public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now;
-    public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
-    public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.Zero;
+    public static DateTime UnityStartTime { get; internal set; } = DateTime.Now - TimeSpan.FromMilliseconds(10);
+    public static DateTime ResoniteStartTime { get; internal set; } = DateTime.Now - TimeSpan.FromMilliseconds(10);
+    public static TimeSpan UnityLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(10);
+    public static TimeSpan ResoniteLastUpdateInterval { get; internal set; } = TimeSpan.FromMilliseconds(10);
     internal static bool _lockResoniteUnlockUnity;
+    private static bool _isResoniteStalling = false;
+    private static bool _isUnityStalling = false;
 
     public static bool IsResoniteStalling
     {
         get
         {
-            if (!IsResoniteStalling)
+            if (!_isResoniteStalling)
             {
                 TimeSpan interval = DateTime.Now - ResoniteStartTime;
-                IsResoniteStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.AsyncThreshold);
+                _isResoniteStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.AsyncThreshold);
             }
 
-            return IsResoniteStalling;
+            return _isResoniteStalling;
         }
         internal set
         {
-            IsResoniteStalling = value;
+            _isResoniteStalling = value;
         }
     }
 
@@ -540,31 +567,23 @@ public static class SynchronizationManager
     {
         get
         {
-            if (!IsUnityStalling)
+            if (!_isUnityStalling)
             {
                 TimeSpan interval = DateTime.Now - UnityStartTime;
-                IsUnityStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.DesyncThreshold);
+                _isUnityStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.DesyncThreshold);
             }
 
-            return IsUnityStalling;
+            return _isUnityStalling;
         }
         internal set
         {
-            IsUnityStalling = value;
+            _isUnityStalling = value;
         }
 
     }
 
     public static void OnUnityUpdate()
     {
-        TimeSpan interval = DateTime.Now - UnityStartTime;
-        if (interval.TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval))
-        {
-            IsUnityStalling = false;
-        }
-
-        UnityLastUpdateInterval = interval;
-
         lock (SyncLock)
         {
             while (!_lockResoniteUnlockUnity)
@@ -583,18 +602,18 @@ public static class SynchronizationManager
             _lockResoniteUnlockUnity = false;
         }
 
+        TimeSpan interval = DateTime.Now - UnityStartTime;
+        if (interval.TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval))
+        {
+            IsUnityStalling = false;
+        }
+
+        UnityLastUpdateInterval = interval;
+
         UnityStartTime = DateTime.Now;
     }
     public static void OnResoniteUpdate()
     {
-        AsyncLogger.StartLogger();
-
-        Thundagun.MarkAsCompletedAction?.Invoke();
-
-        IsResoniteStalling = false;
-
-        ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
-
         lock (SyncLock)
         {
             while (_lockResoniteUnlockUnity)
@@ -610,6 +629,12 @@ public static class SynchronizationManager
 
             _lockResoniteUnlockUnity = true;
         }
+
+        Thundagun.MarkAsCompletedAction?.Invoke();
+
+        IsResoniteStalling = false;
+
+        ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
 
         ResoniteStartTime = DateTime.Now;
     }

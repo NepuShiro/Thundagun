@@ -13,7 +13,7 @@ public class RenderQueueProcessor : MonoBehaviour
     public RenderConnector Connector;
 
     private Queue<Batch> _batchQueue = new();
-    private TimeSpan LastWorkInterval = TimeSpan.Zero;
+    private TimeSpan LastWorkInterval = TimeSpan.FromMilliseconds(1);
 
     // Normally there isn't a constructor here
     public RenderQueueProcessor()
