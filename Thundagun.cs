@@ -51,25 +51,21 @@ public class Thundagun : ResoniteMod
       new("LoggingRate", "Logging Rate: The rate of log updates per second.", () => 10.0f, 
           false, value => value > 0.001f || value < 1000.0f);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> EngineTickRate =
-        new("EngineTickRate", "Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000,
+    internal readonly static ModConfigurationKey<float> MaxEngineTickRate =
+        new("MaxEngineTickRate", "Max Engine Tick Rate: The max rate per second at which FrooxEngine can update.", () => 1000,
             false, value => value > 1);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<float> UnityTickRate =
-        new("UnityTickRate", "Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000,
+    internal readonly static ModConfigurationKey<float> MaxUnityTickRate =
+        new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000,
             false, value => value > 1);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> AsyncThreshold =
-        new("AsyncThreshold", "Async Threshold: The max amount of time in milliseconds Resonite can run for before switching to async.", () => 50.0,
+    internal readonly static ModConfigurationKey<double> MinEngineTickRate =
+        new("MinEngineTickRate", "Min Engine Tick Rate: The min acceptable rate per second at which FrooxEngine should update.", () => 10.0,
             false, value => value > 1);
     [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> DesyncThreshold =
-    new("DesyncThreshold", "Desync Threshold: The max amount of time in milliseconds Unity can run for before switching to desync.", () => 500.0,
+    internal readonly static ModConfigurationKey<double> MinUnityTickRate =
+    new("MinUnityTickRate", "Min Unity Tick Rate: The min acceptable rate per second at which Unity should update..", () => 10.0,
         false, value => value > 2);
-    [AutoRegisterConfigKey]
-    internal readonly static ModConfigurationKey<double> MaxUpdateInterval =
-        new("MaxUpdateInterval", "Max Update Interval: The target time in milliseconds to reach for each Unity update in desync mode.", () => 200.0,
-            false, value => value < 1000 || value > 1);
 
     public override void OnEngineInit()
     {
@@ -223,7 +219,7 @@ public static class FrooxEngineRunnerPatch
                         engine.AssetsUpdated(total);
                         engine.RunUpdateLoop();
                         var resoniteInterval = (DateTime.Now - SynchronizationManager.ResoniteStartTime);
-                        var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.EngineTickRate)) + 1));
+                        var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.MaxEngineTickRate)) + 1));
                         if (resoniteInterval < ticktime)
                         {
                             Task.Delay(ticktime - resoniteInterval);
@@ -234,7 +230,7 @@ public static class FrooxEngineRunnerPatch
                     }
                 });
                 var unityInterval = (DateTime.Now - SynchronizationManager.UnityStartTime);
-                var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.UnityTickRate)) + 1));
+                var ticktime = TimeSpan.FromSeconds((1 / Math.Abs(Thundagun.Config.GetValue(Thundagun.MaxUnityTickRate)) + 1));
                 if (unityInterval < ticktime)
                 {
                     Task.Delay(ticktime - unityInterval);
@@ -552,7 +548,7 @@ public static class SynchronizationManager
             if (!_isResoniteStalling)
             {
                 TimeSpan interval = DateTime.Now - ResoniteStartTime;
-                _isResoniteStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.AsyncThreshold);
+                _isResoniteStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinEngineTickRate);
             }
 
             return _isResoniteStalling;
@@ -570,7 +566,7 @@ public static class SynchronizationManager
             if (!_isUnityStalling)
             {
                 TimeSpan interval = DateTime.Now - UnityStartTime;
-                _isUnityStalling = interval.TotalMilliseconds > Thundagun.Config.GetValue(Thundagun.DesyncThreshold);
+                _isUnityStalling = interval.TotalMilliseconds > 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate);
             }
 
             return _isUnityStalling;
@@ -603,7 +599,7 @@ public static class SynchronizationManager
         }
 
         TimeSpan interval = DateTime.Now - UnityStartTime;
-        if (interval.TotalMilliseconds < Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval))
+        if (interval.TotalMilliseconds < 1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate))
         {
             IsUnityStalling = false;
         }

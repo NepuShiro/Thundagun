@@ -61,7 +61,7 @@ public class RenderQueueProcessor : MonoBehaviour
             TimeSpan timeElapsed;
 
             TimeSpan unityLastNonWorkInterval = SynchronizationManager.UnityLastUpdateInterval - LastWorkInterval;
-            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(Thundagun.Config.GetValue(Thundagun.MaxUpdateInterval)) - unityLastNonWorkInterval;
+            TimeSpan unityAllowedWorkInterval = TimeSpan.FromMilliseconds(1000.0 / Thundagun.Config.GetValue(Thundagun.MinUnityTickRate)) - unityLastNonWorkInterval;
 
             while (_batchQueue.Count > 0)
             {
