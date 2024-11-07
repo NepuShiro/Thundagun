@@ -267,7 +267,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             }
             Skinned._currentBoundsMethod = skinnedBounds;
         }
-        if (BonesChanged || MeshWasChanged || Instantiated)
+        if (BonesChanged || MeshWasChanged)
         {
             var boneCount = BoneCount;
             var blendShapeCount = BlendShapeCount;
