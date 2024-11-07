@@ -20,18 +20,11 @@ public class RenderMaterialOverrideConnector : RenderContextOverride<RenderMater
 		public IAssetProvider<FrooxEngine.Material> replacement;
 	}
 
-	public class RmoMaterialOverride
-	{
-		public int index;
-
-		public IAssetProvider<FrooxEngine.Material> replacement;
-	}
-
 	public IRendererConnector mesh;
 
 	private List<MaterialOverride> overrides = new List<MaterialOverride>();
 
-	public List<RmoMaterialOverride> RmoOverrides;
+	public List<MaterialOverride> RmoOverrides;
 
 	public int OverridesCount;
 

@@ -19,7 +19,6 @@ public class SkinnedMeshRendererConnector :
     public SkinBoundsUpdater _boundsUpdater;
     public Transform[] bones;
     private bool _sendingBoundsUpdate;
-    //public bool _forceRecalcPerRender;
     private HashSet<RenderTransformOverrideConnector> _forceRecalcRegistrations;
     public SkinnedBounds _currentBoundsMethod = (SkinnedBounds)(-1);
 
@@ -88,14 +87,6 @@ public class SkinnedMeshRendererConnector :
 			base.MeshRenderer.forceMatrixRecalculationPerRender = false;
 		}
 	}
-
-    //public void ForceRecalculationPerRender()
-    //{
-    //    _forceRecalcPerRender = true;
-    //    if (!(MeshRenderer != null))
-    //        return;
-    //    MeshRenderer.forceMatrixRecalculationPerRender = true;
-    //}
 
     public void SendBoundsUpdated()
     {

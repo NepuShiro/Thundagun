@@ -137,10 +137,10 @@ public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> whe
 			var rmoConn = rmo.Connector as RenderMaterialOverrideConnector;
 			rmoConn.mesh = rmo.Renderer.Target?.Connector as IRendererConnector;
 			rmoConn.OverridesCount = rmo.Overrides.Count;
-			List<RenderMaterialOverrideConnector.RmoMaterialOverride> list = new();
+			List<RenderMaterialOverrideConnector.MaterialOverride> list = new();
 			foreach (var rmoOverride in rmo.Overrides)
 			{
-				list.Add(new RenderMaterialOverrideConnector.RmoMaterialOverride { index = rmoOverride.Index.Value, replacement = rmoOverride.Material.Target });
+				list.Add(new RenderMaterialOverrideConnector.MaterialOverride { index = rmoOverride.Index.Value, replacement = rmoOverride.Material.Target });
 			}
 			rmoConn.RmoOverrides = list;
 		}
