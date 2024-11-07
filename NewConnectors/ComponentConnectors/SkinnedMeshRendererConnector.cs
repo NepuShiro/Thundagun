@@ -19,7 +19,6 @@ public class SkinnedMeshRendererConnector :
     public SkinBoundsUpdater _boundsUpdater;
     public Transform[] bones;
     private bool _sendingBoundsUpdate;
-    //public bool _forceRecalcPerRender;
     private HashSet<RenderTransformOverrideConnector> _forceRecalcRegistrations;
     public SkinnedBounds _currentBoundsMethod = (SkinnedBounds)(-1);
 
@@ -88,14 +87,6 @@ public class SkinnedMeshRendererConnector :
 			base.MeshRenderer.forceMatrixRecalculationPerRender = false;
 		}
 	}
-
-    //public void ForceRecalculationPerRender()
-    //{
-    //    _forceRecalcPerRender = true;
-    //    if (!(MeshRenderer != null))
-    //        return;
-    //    MeshRenderer.forceMatrixRecalculationPerRender = true;
-    //}
 
     public void SendBoundsUpdated()
     {
@@ -177,8 +168,11 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             SkinnedBounds = SkinnedBounds.FastDisjointRootApproximate;
 
         BoundsChanged = owner.Owner.ProxyBoundsSource.WasChanged || owner.Owner.ExplicitLocalBounds.WasChanged;
-        owner.Owner.ProxyBoundsSource.WasChanged = false;
-        owner.Owner.ExplicitLocalBounds.WasChanged = false;
+        if (MeshWasChanged || Skinned._currentBoundsMethod != SkinnedBounds || BoundsChanged)
+        {
+            owner.Owner.ProxyBoundsSource.WasChanged = false;
+            owner.Owner.ExplicitLocalBounds.WasChanged = false;
+        }
 
         switch (SkinnedBounds)
         {
@@ -193,30 +187,46 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             case SkinnedBounds.FastDisjointRootApproximate:
             case SkinnedBounds.MediumPerBoneApproximate:
             case SkinnedBounds.SlowRealtimeAccurate:
-                BoneMetadata = new List<BoneMetadata>(owner.Owner.Mesh.Asset.BoneMetadata);
-                ApproximateBounds = new List<ApproximateBoneBounds>(owner.Owner.Mesh.Asset.ApproximateBoneBounds);
+                if (owner.Owner.Mesh.Asset is FrooxEngine.Mesh mesh && mesh.BoneMetadata != null && mesh.ApproximateBoneBounds != null)
+                {
+                    BoneMetadata = new List<BoneMetadata>(mesh.BoneMetadata);
+                    ApproximateBounds = new List<ApproximateBoneBounds>(mesh.ApproximateBoneBounds);
+                }
                 break;
         }
 
         BonesChanged = owner.Owner.BonesChanged;
-        owner.Owner.BonesChanged = false;
-
-        BlendShapeCount = owner.Owner.Mesh?.Asset?.Data?.BlendShapeCount;
-
         if (BonesChanged || MeshWasChanged)
         {
-            BoneCount = owner.Owner.Mesh?.Asset?.Data?.BoneCount;
-            Bones = owner.Owner.Bones.Select(i => i.Connector as SlotConnector).ToList();
-            RootBone = owner.Owner.GetRootBone()?.Connector as SlotConnector;
+            owner.Owner.BonesChanged = false;
         }
+
+        BlendShapeCount = owner.Owner.Mesh.Asset?.Data?.BlendShapeCount;
+
+        BoneCount = owner.Owner.Mesh.Asset?.Data?.BoneCount;
+
+        Bones = new List<SlotConnector>();
+        foreach (var bone in owner.Owner.Bones)
+        {
+            if (bone?.Connector is SlotConnector slotConnector)
+            {
+                Bones.Add(bone?.Connector as SlotConnector);
+            }
+            else
+            {
+                Bones.Add(null);
+            }
+        }
+
+        RootBone = owner.Owner.GetRootBone()?.Connector as SlotConnector;
 
         BlendShapeWeightsChanged = owner.Owner.BlendShapeWeightsChanged;
-        owner.Owner.BlendShapeWeightsChanged = false;
-
         if (BlendShapeWeightsChanged || MeshWasChanged)
         {
-            BlendShapeWeights = new List<float>(owner.Owner.BlendShapeWeights);
+            owner.Owner.BlendShapeWeightsChanged = false;
         }
+
+        BlendShapeWeights = new List<float>(owner.Owner.BlendShapeWeights);
     }
 
     public override void OnUpdateRenderer(bool instantiated)
@@ -224,6 +234,11 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
         var skinnedBounds = SkinnedBounds;
         if (MeshWasChanged || Skinned._currentBoundsMethod != skinnedBounds || BoundsChanged)
         {
+            //Owner.Owner.RunSynchronously(() =>
+            //{
+            //    Owner.Owner.ProxyBoundsSource.WasChanged = false;
+            //    Owner.Owner.ExplicitLocalBounds.WasChanged = false;
+            //});
             if (skinnedBounds != SkinnedBounds.Static && skinnedBounds != SkinnedBounds.Proxy &&
                 skinnedBounds != SkinnedBounds.Explicit)
             {
@@ -267,8 +282,9 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             }
             Skinned._currentBoundsMethod = skinnedBounds;
         }
-        if (BonesChanged || MeshWasChanged || Instantiated)
+        if (BonesChanged || MeshWasChanged)
         {
+            Owner.Owner.BonesChanged = false;
             var boneCount = BoneCount;
             var blendShapeCount = BlendShapeCount;
             var weightBonelessOverride = boneCount.GetValueOrDefault() == 0 && blendShapeCount.GetValueOrDefault() > 0;
@@ -300,6 +316,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
 
         if (BlendShapeWeightsChanged || MeshWasChanged)
         {
+            Owner.Owner.BlendShapeWeightsChanged = false;
             var valueOrDefault = BlendShapeCount.GetValueOrDefault();
             var index1 = 0;
             for (var index2 = MathX.Min(valueOrDefault, BlendShapeWeights.Count); index1 < index2; index1++)

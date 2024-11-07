@@ -17,21 +17,14 @@ public class RenderMaterialOverrideConnector : RenderContextOverride<RenderMater
 
 		public UnityEngine.Material original;
 
-		public IAssetProvider<FrooxEngine.Material> replacement;
-	}
-
-	public class RmoMaterialOverride
-	{
-		public int index;
-
-		public IAssetProvider<FrooxEngine.Material> replacement;
+		public UnityEngine.Material replacement;
 	}
 
 	public IRendererConnector mesh;
 
 	private List<MaterialOverride> overrides = new List<MaterialOverride>();
 
-	public List<RmoMaterialOverride> RmoOverrides;
+	public List<MaterialOverride> RmoOverrides;
 
 	public int OverridesCount;
 
@@ -50,7 +43,7 @@ public class RenderMaterialOverrideConnector : RenderContextOverride<RenderMater
 			if (@override.index >= 0 && @override.index < sharedMaterials.Length)
 			{
 				@override.original = sharedMaterials[@override.index];
-				sharedMaterials[@override.index] = (@override.replacement?.Asset?.Connector as MaterialConnector)?.UnityMaterial;
+				sharedMaterials[@override.index] = @override.replacement;
 			}
 		}
 		renderer.sharedMaterials = sharedMaterials;

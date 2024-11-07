@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using UnityFrooxEngineRunner;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -26,16 +27,12 @@ public abstract class RenderContextOverride<D> : ComponentConnectorSingle<D> whe
 
 	public abstract void UpdateSetup();
 
-	public override void Initialize()
-	{
-		base.Initialize();
-		_handler = HandleRenderingContextSwitch;
-	}
+	public override IUpdatePacket InitializePacket() => new InitializeRenderContextOverrideConnector<D>(this);
 
-	public override void Destroy(bool destroyingWorld)
+	public override void DestroyMethod(bool destroyingWorld)
 	{
 		UnregisterHandler();
-		base.Destroy(destroyingWorld);
+		base.DestroyMethod(destroyingWorld);
 	}
 
 	public void RunOverride()
@@ -84,6 +81,19 @@ public abstract class RenderContextOverride<D> : ComponentConnectorSingle<D> whe
 			_registeredContext = null;
 		}
 	}
+}
+
+public class InitializeRenderContextOverrideConnector<D> : InitializeComponentConnectorSingle<D, RenderContextOverride<D>> where D : ImplementableComponent<IConnector>
+{
+    public InitializeRenderContextOverrideConnector(RenderContextOverride<D> owner) : base(owner, owner.Owner)
+    {
+		Owner._handler = Owner.HandleRenderingContextSwitch;
+    }
+
+    public override void Update()
+    {
+		base.Update();
+    }
 }
 
 public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> where D : ImplementableComponent<IConnector>
@@ -137,10 +147,11 @@ public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> whe
 			var rmoConn = rmo.Connector as RenderMaterialOverrideConnector;
 			rmoConn.mesh = rmo.Renderer.Target?.Connector as IRendererConnector;
 			rmoConn.OverridesCount = rmo.Overrides.Count;
-			List<RenderMaterialOverrideConnector.RmoMaterialOverride> list = new();
+			List<RenderMaterialOverrideConnector.MaterialOverride> list = new();
 			foreach (var rmoOverride in rmo.Overrides)
 			{
-				list.Add(new RenderMaterialOverrideConnector.RmoMaterialOverride { index = rmoOverride.Index.Value, replacement = rmoOverride.Material.Target });
+				var materialConnector = rmoOverride.Material.Target?.Asset?.Connector as AssetConnectors.MaterialConnector;
+				list.Add(new RenderMaterialOverrideConnector.MaterialOverride { index = rmoOverride.Index.Value, replacement = materialConnector?.UnityMaterial });
 			}
 			rmoConn.RmoOverrides = list;
 		}
