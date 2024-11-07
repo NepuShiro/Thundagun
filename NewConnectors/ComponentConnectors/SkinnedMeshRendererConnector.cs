@@ -187,10 +187,10 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             case SkinnedBounds.FastDisjointRootApproximate:
             case SkinnedBounds.MediumPerBoneApproximate:
             case SkinnedBounds.SlowRealtimeAccurate:
-                if (owner.Owner.Mesh.Asset != null)
+                if (owner.Owner.Mesh.Asset is FrooxEngine.Mesh mesh && mesh.BoneMetadata != null && mesh.ApproximateBoneBounds != null)
                 {
-                    BoneMetadata = new List<BoneMetadata>(owner.Owner.Mesh.Asset.BoneMetadata);
-                    ApproximateBounds = new List<ApproximateBoneBounds>(owner.Owner.Mesh.Asset.ApproximateBoneBounds);
+                    BoneMetadata = new List<BoneMetadata>(mesh.BoneMetadata);
+                    ApproximateBounds = new List<ApproximateBoneBounds>(mesh.ApproximateBoneBounds);
                 }
                 break;
         }
