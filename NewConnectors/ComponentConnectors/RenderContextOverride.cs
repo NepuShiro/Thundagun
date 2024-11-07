@@ -29,11 +29,6 @@ public abstract class RenderContextOverride<D> : ComponentConnectorSingle<D> whe
 
 	public override IUpdatePacket InitializePacket() => new InitializeRenderContextOverrideConnector<D>(this);
 
-	//public override void Initialize()
-	//{
-	//	base.Initialize();
-	//}
-
 	public override void DestroyMethod(bool destroyingWorld)
 	{
 		UnregisterHandler();
@@ -155,7 +150,8 @@ public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> whe
 			List<RenderMaterialOverrideConnector.MaterialOverride> list = new();
 			foreach (var rmoOverride in rmo.Overrides)
 			{
-				list.Add(new RenderMaterialOverrideConnector.MaterialOverride { index = rmoOverride.Index.Value, replacement = rmoOverride.Material.Target });
+				var materialConnector = rmoOverride.Material.Target?.Asset?.Connector as AssetConnectors.MaterialConnector;
+				list.Add(new RenderMaterialOverrideConnector.MaterialOverride { index = rmoOverride.Index.Value, replacement = materialConnector?.UnityMaterial });
 			}
 			rmoConn.RmoOverrides = list;
 		}

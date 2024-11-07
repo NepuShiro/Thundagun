@@ -232,7 +232,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
     public override void OnUpdateRenderer(bool instantiated)
     {
         var skinnedBounds = SkinnedBounds;
-        if (MeshWasChanged || Skinned._currentBoundsMethod != skinnedBounds || BoundsChanged || instantiated)
+        if (MeshWasChanged || Skinned._currentBoundsMethod != skinnedBounds || BoundsChanged)
         {
             //Owner.Owner.RunSynchronously(() =>
             //{
@@ -282,7 +282,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             }
             Skinned._currentBoundsMethod = skinnedBounds;
         }
-        if (BonesChanged || MeshWasChanged || instantiated)
+        if (BonesChanged || MeshWasChanged)
         {
             Owner.Owner.BonesChanged = false;
             var boneCount = BoneCount;
@@ -314,7 +314,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
                     : RootBone?.ForceGetGameObject().transform;
         }
 
-        if (BlendShapeWeightsChanged || MeshWasChanged || instantiated)
+        if (BlendShapeWeightsChanged || MeshWasChanged)
         {
             Owner.Owner.BlendShapeWeightsChanged = false;
             var valueOrDefault = BlendShapeCount.GetValueOrDefault();

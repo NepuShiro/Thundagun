@@ -17,7 +17,7 @@ public class RenderMaterialOverrideConnector : RenderContextOverride<RenderMater
 
 		public UnityEngine.Material original;
 
-		public IAssetProvider<FrooxEngine.Material> replacement;
+		public UnityEngine.Material replacement;
 	}
 
 	public IRendererConnector mesh;
@@ -43,7 +43,7 @@ public class RenderMaterialOverrideConnector : RenderContextOverride<RenderMater
 			if (@override.index >= 0 && @override.index < sharedMaterials.Length)
 			{
 				@override.original = sharedMaterials[@override.index];
-				sharedMaterials[@override.index] = (@override.replacement?.Asset?.Connector as MaterialConnector)?.UnityMaterial;
+				sharedMaterials[@override.index] = @override.replacement;
 			}
 		}
 		renderer.sharedMaterials = sharedMaterials;

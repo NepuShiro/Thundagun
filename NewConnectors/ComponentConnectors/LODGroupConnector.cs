@@ -11,34 +11,9 @@ public class LODGroupConnector : ComponentConnectorSingle<FrooxEngine.LODGroup>
 
 	public UnityEngine.LODGroup lodGroup;
 
-	//public override void Initialize()
-	//{
-	//	base.Initialize();
-		
-	//}
-
 	public override IUpdatePacket InitializePacket() => new InitializeLODGroupConnector(this);
 
 	public override void ApplyChanges() => Thundagun.QueuePacket(new ApplyChangesLODGroupConnector(this));
-
-	//public override void ApplyChanges()
-	//{
-	//	LOD[] array = new LOD[base.Owner.LODs.Count];
-	//	for (int i = 0; i < base.Owner.LODs.Count; i++)
-	//	{
-	//		FrooxEngine.LODGroup.LOD lOD = base.Owner.LODs[i];
-	//		array[i].screenRelativeTransitionHeight = lOD.ScreenRelativeTransitionHeight;
-	//		array[i].fadeTransitionWidth = lOD.FadeTransitionWidth;
-	//		Renderer[] array2 = new Renderer[lOD.Renderers.Count];
-	//		for (int j = 0; j < lOD.Renderers.Count; j++)
-	//		{
-	//			array2[j] = (lOD.Renderers[j]?.Connector as IRendererConnector)?.Renderer;
-	//		}
-	//		array[i].renderers = array2;
-	//	}
-	//	lodGroup.SetLODs(array);
-	//	lodGroup.RecalculateBounds();
-	//}
 
 	public override void DestroyMethod(bool destroyingWorld)
 	{
