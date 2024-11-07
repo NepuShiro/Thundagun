@@ -36,6 +36,10 @@ public abstract class MeshRendererConnectorBase<T, TU> : ComponentConnectorSingl
     {
     }
 
+    public virtual void OnUpdateRenderer(bool instantiated)
+    {
+    }
+
     public virtual void OnCleanupRenderer()
     {
     }
@@ -44,9 +48,9 @@ public abstract class MeshRendererConnectorBase<T, TU> : ComponentConnectorSingl
 
     public void CleanupRenderer(bool destroyingWorld)
     {
-        if (!destroyingWorld && MeshRenderer != null && MeshRenderer.gameObject)
+        if (!destroyingWorld && MeshRenderer != null && (bool)MeshRenderer.gameObject)
             Object.Destroy(MeshRenderer.gameObject);
-        MeshRenderer = default;
+        MeshRenderer = null;
         OnCleanupRenderer();
     }
 
@@ -55,7 +59,7 @@ public abstract class MeshRendererConnectorBase<T, TU> : ComponentConnectorSingl
         CleanupRenderer(destroyingWorld);
         UnityMaterials = null;
         MeshFilter = null;
-        MeshRenderer = default;
+        MeshRenderer = null;
         base.DestroyMethod(destroyingWorld);
     }
 
@@ -87,6 +91,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
     public ShadowCastingMode ShadowCastingMode;
     public bool MotionVectorModeChanged;
     public MotionVectorGenerationMode MotionVectorMode;
+    public bool Instantiated;
 
     public ApplyChangesMeshRendererConnectorBase(MeshRendererConnectorBase<T, TU> owner) : base(owner)
     {
@@ -109,6 +114,11 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
             ShadowCastingMode = owner.Owner.ShadowCastMode.Value.ToUnity();
             MotionVectorModeChanged = owner.Owner.MotionVectorMode.GetWasChangedAndClear();
             MotionVectorMode = owner.Owner.MotionVectorMode.Value.ToUnity();
+            Instantiated = false;
+            if (owner.MeshRenderer == null)
+            {
+                Instantiated = true;
+            }
         }
     }
 
@@ -117,10 +127,11 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
         if (!ShouldBeEnabled)
         {
             Owner.CleanupRenderer(false);
+            return;
         }
         else
         {
-            var instantiated = false;
+            //Instantiated = false;
             if (Owner.MeshRenderer == null)
             {
                 var gameObject = new GameObject("");
@@ -130,10 +141,10 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                     Owner.MeshFilter = gameObject.AddComponent<MeshFilter>();
                 Owner.MeshRenderer = gameObject.AddComponent<TU>();
                 Owner.OnAttachRenderer();
-                instantiated = true;
+                //Instantiated = true;
             }
 
-            if (MeshWasChanged || instantiated)
+            if (MeshWasChanged || Instantiated)
             {
                 var unity = Mesh?.Mesh;
                 if (Owner.UseMeshFilter) Owner.MeshFilter.sharedMesh = unity;
@@ -150,20 +161,19 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                     : MaterialConnector.NullMaterial;
                 if (Materials.Count > 1 || Owner.UnityMaterials != null)
                 {
-                    Owner.UnityMaterials = Owner.UnityMaterials.EnsureExactSize(Materials.Count, allowZeroSize: true);
+                    Owner.UnityMaterials = Owner.UnityMaterials.EnsureExactSize(Materials.Count, keepData: false, allowZeroSize: true);
                     for (var i = 0; i < Owner.UnityMaterials.Length; i++)
-                        Owner.UnityMaterials[i] = (Materials[i] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
+						Owner.UnityMaterials[i] = (Materials[i] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
                     Owner.MeshRenderer.sharedMaterials = Owner.UnityMaterials;
                     MaterialCount = Owner.UnityMaterials.Length;
                 }
                 else if (Materials.Count == 1)
-                    Owner.MeshRenderer.sharedMaterial =
-                        (Materials[0] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
+                    Owner.MeshRenderer.sharedMaterial = (Materials[0] as MaterialConnector)?.UnityMaterial ?? nullMaterial;
                 else
                     Owner.MeshRenderer.sharedMaterial = nullMaterial;
             }
 
-            if (MaterialPropertyBlocksChanged | flag)
+            if (MaterialPropertyBlocksChanged || flag)
             {
                 if (MaterialPropertyBlocks.Count > 0)
                 {
@@ -171,9 +181,8 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                     {
                         if (i < MaterialPropertyBlocks.Count)
                         {
-                            var materialPropertyBlock = MaterialPropertyBlocks[i] as MaterialPropertyBlockConnector;
-                            var unity = materialPropertyBlock?.UnityBlock;
-                            Owner.MeshRenderer.SetPropertyBlock(unity, i);
+                            var materialPropertyBlock = (MaterialPropertyBlocks[i] as MaterialPropertyBlockConnector)?.UnityBlock;
+                            Owner.MeshRenderer.SetPropertyBlock(materialPropertyBlock, i);
                         }
                         else
                             Owner.MeshRenderer.SetPropertyBlock(null, i);
@@ -189,10 +198,10 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
             }
 
             if (Owner.MeshRenderer.enabled != Enabled) Owner.MeshRenderer.enabled = Enabled;
-            if (SortingOrderChanged | instantiated) Owner.MeshRenderer.sortingOrder = SortingOrder;
-            if (ShadowCastingModeChanged | instantiated) Owner.MeshRenderer.shadowCastingMode = ShadowCastingMode;
-            if (MotionVectorModeChanged | instantiated) Owner.MeshRenderer.motionVectorGenerationMode = MotionVectorMode;
-            OnUpdateRenderer(instantiated);
+            if (SortingOrderChanged || Instantiated) Owner.MeshRenderer.sortingOrder = SortingOrder;
+            if (ShadowCastingModeChanged || Instantiated) Owner.MeshRenderer.shadowCastingMode = ShadowCastingMode;
+            if (MotionVectorModeChanged || Instantiated) Owner.MeshRenderer.motionVectorGenerationMode = MotionVectorMode;
+            OnUpdateRenderer(Instantiated);
         }
     }
     public virtual void OnUpdateRenderer(bool instantiated)

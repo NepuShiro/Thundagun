@@ -52,7 +52,7 @@ public class ApplyChangesCameraPortalConnector : UpdatePacket<CameraPortalConnec
         MeshRenderer = target?.Connector as MeshRendererConnector;
         Engine = owner.Owner.Engine;
 
-        if (target?.Mesh.Target != null && MeshRenderer.MeshRenderer.gameObject == null && target.IsChangeDirty) owner.Owner.MarkChangeDirty();
+        if (target?.Mesh.Target != null && MeshRenderer?.MeshRenderer?.gameObject == null && target.IsChangeDirty) owner.Owner.MarkChangeDirty();
 
         var v = MathX.FilterInvalid(owner.Owner.PlaneNormal);
         if (v.SqrMagnitude < 1E-06f) v = float3.Forward;

@@ -19,18 +19,32 @@ public class SkinnedMeshRendererConnector :
     public SkinBoundsUpdater _boundsUpdater;
     public Transform[] bones;
     private bool _sendingBoundsUpdate;
-    public bool _forceRecalcPerRender;
-    public SkinnedBounds _currentBoundsMethod = ~SkinnedBounds.Static;
+    //public bool _forceRecalcPerRender;
+    private HashSet<RenderTransformOverrideConnector> _forceRecalcRegistrations;
+    public SkinnedBounds _currentBoundsMethod = (SkinnedBounds)(-1);
 
     public bool LocalBoundingBoxAvailable { get; internal set; }
 
     public BoundingBox LocalBoundingBox { get; internal set; }
 
+    public bool ForceRecalcPerRender
+	{
+		get
+		{
+			HashSet<RenderTransformOverrideConnector> forceRecalcRegistrations = _forceRecalcRegistrations;
+			if (forceRecalcRegistrations == null)
+			{
+				return false;
+			}
+			return forceRecalcRegistrations.Count > 0;
+		}
+	}
+
     public event Action BoundsUpdated;
 
     public override bool UseMeshFilter => false;
 
-    public bool ForceRecalcActive => throw new NotImplementedException();
+    public bool ForceRecalcActive => base.MeshRenderer?.forceMatrixRecalculationPerRender ?? false;
 
     public override void AssignMesh(UnityEngine.SkinnedMeshRenderer renderer, Mesh mesh) => renderer.sharedMesh = mesh;
 
@@ -40,7 +54,7 @@ public class SkinnedMeshRendererConnector :
     }
     public void CleanupBoundsUpdater()
     {
-        if (_boundsUpdater)
+        if ((bool)_boundsUpdater)
             Object.Destroy(_boundsUpdater);
         _boundsUpdater = null;
     }
@@ -53,13 +67,35 @@ public class SkinnedMeshRendererConnector :
         CleanupBoundsUpdater();
     }
 
-    public void ForceRecalculationPerRender()
-    {
-        _forceRecalcPerRender = true;
-        if (!(MeshRenderer != null))
-            return;
-        MeshRenderer.forceMatrixRecalculationPerRender = true;
-    }
+    internal void RequestForceRecalcPerRender(RenderTransformOverrideConnector connector)
+	{
+		if (_forceRecalcRegistrations == null)
+		{
+			_forceRecalcRegistrations = new HashSet<RenderTransformOverrideConnector>();
+		}
+		if (!ForceRecalcPerRender && base.MeshRenderer != null)
+		{
+			base.MeshRenderer.forceMatrixRecalculationPerRender = true;
+		}
+		_forceRecalcRegistrations.Add(connector);
+	}
+
+    internal void RemoveRequestForceRecalcPerRender(RenderTransformOverrideConnector connector)
+	{
+		_forceRecalcRegistrations.Remove(connector);
+		if (!ForceRecalcPerRender && base.MeshRenderer != null)
+		{
+			base.MeshRenderer.forceMatrixRecalculationPerRender = false;
+		}
+	}
+
+    //public void ForceRecalculationPerRender()
+    //{
+    //    _forceRecalcPerRender = true;
+    //    if (!(MeshRenderer != null))
+    //        return;
+    //    MeshRenderer.forceMatrixRecalculationPerRender = true;
+    //}
 
     public void SendBoundsUpdated()
     {
@@ -70,7 +106,7 @@ public class SkinnedMeshRendererConnector :
             _sendingBoundsUpdate = true;
             if (BoundsUpdated == null)
                 return;
-            BoundsUpdated();
+            BoundsUpdated.Invoke();
         }
         finally
         {
@@ -88,9 +124,10 @@ public class SkinnedMeshRendererConnector :
 
     public void ProxyBoundsUpdated()
     {
-        if (!(MeshRenderer != null) || !(_proxySource.MeshRenderer != null))
-            return;
-        MeshRenderer.localBounds = _proxySource.MeshRenderer.localBounds;
+        if (base.MeshRenderer != null && _proxySource.MeshRenderer != null)
+		{
+			base.MeshRenderer.localBounds = _proxySource.MeshRenderer.localBounds;
+		}
     }
 
     public override void OnAttachRenderer()
@@ -104,7 +141,7 @@ public class SkinnedMeshRendererConnector :
         BoundsUpdated = null;
         if (_boundsUpdater != null)
         {
-            if (!destroyingWorld && _boundsUpdater) Object.Destroy(_boundsUpdater);
+            if (!destroyingWorld && (bool)_boundsUpdater) Object.Destroy(_boundsUpdater);
             _boundsUpdater = null;
         }
         bones = null;
@@ -230,11 +267,11 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             }
             Skinned._currentBoundsMethod = skinnedBounds;
         }
-        if (BonesChanged || MeshWasChanged)
+        if (BonesChanged || MeshWasChanged || Instantiated)
         {
             var boneCount = BoneCount;
             var blendShapeCount = BlendShapeCount;
-            var weightBonelessOverride = boneCount.GetValueOrDefault() == 0 && blendShapeCount.GetValueOrDefault() > 0; ;
+            var weightBonelessOverride = boneCount.GetValueOrDefault() == 0 && blendShapeCount.GetValueOrDefault() > 0;
             if (weightBonelessOverride) boneCount = 1;
             Skinned.bones = Skinned.bones.EnsureExactSize(boneCount.GetValueOrDefault());
             if (Skinned.bones != null)
@@ -246,7 +283,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
                 else
                 {
                     var num7 = MathX.Min(Skinned.bones.Length, Bones.Count);
-                    for (var index = 0; index < num7; ++index)
+                    for (var index = 0; index < num7; index++)
                     {
                         var obj = Bones[index];
                         if (obj is null) continue;
@@ -275,7 +312,7 @@ public class ApplyChangesSkinnedMeshRenderer : ApplyChangesMeshRendererConnector
             }
         }
 
-        if (Skinned._forceRecalcPerRender) Skinned.MeshRenderer.forceMatrixRecalculationPerRender = true;
+        if (Skinned.ForceRecalcPerRender) Skinned.MeshRenderer.forceMatrixRecalculationPerRender = true;
         Skinned.SendBoundsUpdated();
     }
 }

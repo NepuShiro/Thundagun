@@ -124,7 +124,7 @@ public class MaterialConnector : MaterialConnectorBase, IMaterialConnector
     private void CleanupMaterial()
     {
         if (_unityMaterial == null) return;
-        if (_unityMaterial) UnityEngine.Object.Destroy(_unityMaterial);
+        if ((bool)_unityMaterial) UnityEngine.Object.DestroyImmediate(_unityMaterial, allowDestroyingAssets: true);
         _unityMaterial = null;
     }
 
