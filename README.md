@@ -9,7 +9,6 @@ Thundagun is a lightning fast performance mod for Resonite. It improves performa
 - **Parallel Execution**: Maximizes CPU and GPU utilization by running Resonite and Unity on separate threads.
 - **Sync Mode**: Ensures a consistent 1:1 ratio between game updates and frames for stable visuals.
 - **Async Mode**: Allows Unity to update independently of Resonite, protecting against stalls.
-- **Auto Switching**: Enables thresholds to be defined for switching dynamically between sync and async modes based on game performance.
 
 ## Installation
 
