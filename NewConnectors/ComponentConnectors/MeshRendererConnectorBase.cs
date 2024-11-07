@@ -87,13 +87,14 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
     public ShadowCastingMode ShadowCastingMode;
     public bool MotionVectorModeChanged;
     public MotionVectorGenerationMode MotionVectorMode;
+    //public bool Instantiated;
 
     public ApplyChangesMeshRendererConnectorBase(MeshRendererConnectorBase<T, TU> owner) : base(owner)
     {
         ShouldBeEnabled = owner.Owner.ShouldBeEnabled;
         if (ShouldBeEnabled)
         {
-            MeshWasChanged = owner.Owner.Mesh.GetWasChangedAndClear();
+            MeshWasChanged = owner.Owner.Mesh.GetWasChangedAndClear() || owner.MeshRenderer == null;
             Mesh = owner.Owner.Mesh?.Asset?.Connector as MeshConnector;
             MaterialsChanged = owner.Owner.MaterialsChanged;
             IsLocalElement = Owner.Owner.IsLocalElement;
@@ -120,7 +121,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
         }
         else
         {
-            var instantiated = false;
+            bool instantiated = false;
             if (Owner.MeshRenderer == null)
             {
                 var gameObject = new GameObject("");
@@ -163,7 +164,7 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
                     Owner.MeshRenderer.sharedMaterial = nullMaterial;
             }
 
-            if (MaterialPropertyBlocksChanged | flag)
+            if (MaterialPropertyBlocksChanged || flag)
             {
                 if (MaterialPropertyBlocks.Count > 0)
                 {
@@ -189,9 +190,9 @@ public class ApplyChangesMeshRendererConnectorBase<T, TU> : UpdatePacket<MeshRen
             }
 
             if (Owner.MeshRenderer.enabled != Enabled) Owner.MeshRenderer.enabled = Enabled;
-            if (SortingOrderChanged | instantiated) Owner.MeshRenderer.sortingOrder = SortingOrder;
-            if (ShadowCastingModeChanged | instantiated) Owner.MeshRenderer.shadowCastingMode = ShadowCastingMode;
-            if (MotionVectorModeChanged | instantiated) Owner.MeshRenderer.motionVectorGenerationMode = MotionVectorMode;
+            if (SortingOrderChanged || instantiated) Owner.MeshRenderer.sortingOrder = SortingOrder;
+            if (ShadowCastingModeChanged || instantiated) Owner.MeshRenderer.shadowCastingMode = ShadowCastingMode;
+            if (MotionVectorModeChanged || instantiated) Owner.MeshRenderer.motionVectorGenerationMode = MotionVectorMode;
             OnUpdateRenderer(instantiated);
         }
     }

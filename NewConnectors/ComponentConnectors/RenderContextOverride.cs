@@ -3,6 +3,7 @@ using System;
 using System.Linq;
 using UnityFrooxEngineRunner;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace Thundagun.NewConnectors.ComponentConnectors;
 
@@ -26,16 +27,17 @@ public abstract class RenderContextOverride<D> : ComponentConnectorSingle<D> whe
 
 	public abstract void UpdateSetup();
 
-	public override void Initialize()
-	{
-		base.Initialize();
-		_handler = HandleRenderingContextSwitch;
-	}
+	public override IUpdatePacket InitializePacket() => new InitializeRenderContextOverrideConnector<D>(this);
 
-	public override void Destroy(bool destroyingWorld)
+	//public override void Initialize()
+	//{
+	//	base.Initialize();
+	//}
+
+	public override void DestroyMethod(bool destroyingWorld)
 	{
 		UnregisterHandler();
-		base.Destroy(destroyingWorld);
+		base.DestroyMethod(destroyingWorld);
 	}
 
 	public void RunOverride()
@@ -84,6 +86,19 @@ public abstract class RenderContextOverride<D> : ComponentConnectorSingle<D> whe
 			_registeredContext = null;
 		}
 	}
+}
+
+public class InitializeRenderContextOverrideConnector<D> : InitializeComponentConnectorSingle<D, RenderContextOverride<D>> where D : ImplementableComponent<IConnector>
+{
+    public InitializeRenderContextOverrideConnector(RenderContextOverride<D> owner) : base(owner, owner.Owner)
+    {
+		Owner._handler = Owner.HandleRenderingContextSwitch;
+    }
+
+    public override void Update()
+    {
+		base.Update();
+    }
 }
 
 public class ApplyChangesRenderContextOverrideConnector<D> : UpdatePacket<D> where D : ImplementableComponent<IConnector>
