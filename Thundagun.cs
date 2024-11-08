@@ -31,6 +31,8 @@ public class Thundagun : ResoniteMod
     public static readonly Queue<IUpdatePacket> CurrentPackets = new();
 
     public static Task FrooxEngineTask;
+    
+    public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
 
     public static void QueuePacket(IUpdatePacket packet)
     {
@@ -55,6 +57,10 @@ public class Thundagun : ResoniteMod
     internal readonly static ModConfigurationKey<double> MaxUnityTickRate =
         new("MaxUnityTickRate", "Max Unity Tick Rate: The max rate per second at which Unity can update.", () => 1000.0,
             false, value => value >= 1.0);
+    [AutoRegisterConfigKey]
+    internal readonly static ModConfigurationKey<bool> RenderIncompleteUpdates =
+        new("RenderIncompleteUpdates", "Render Incomplete Updates: Allow Unity to process and render engine changes in realtime.", () => false,
+            false, value => true);
 
     public override void OnEngineInit()
     {
@@ -218,32 +224,37 @@ public static class FrooxEngineRunnerPatch
                 engine.InputInterface.UpdateWindowResolution(new int2(Screen.width, Screen.height));
 
                 var boilerplateTime = DateTime.Now;
-                List<IUpdatePacket> updates;
-                lock (Thundagun.CurrentPackets)
+                
+
+                if (Thundagun.engineCompletionStatus.EngineCompleted || Thundagun.Config.GetValue(Thundagun.RenderIncompleteUpdates))
                 {
-                    updates = [..Thundagun.CurrentPackets];
-                    Thundagun.CurrentPackets.Clear();
+                    List<IUpdatePacket> updates;
+                    lock (Thundagun.CurrentPackets)
+                    {
+                        updates = [..Thundagun.CurrentPackets];
+                        Thundagun.CurrentPackets.Clear();
+                    }
+
+                    foreach (var update in updates)
+                    {
+                        try
+                        {
+                            update.Update();
+                        }
+                        catch (Exception e)
+                        {
+                            Thundagun.Msg(e);
+                        }
+                    }
+                    lock (Thundagun.engineCompletionStatus)
+                        Thundagun.engineCompletionStatus.EngineCompleted = false;
                 }
-
-
+                
                 if (UnityAssetIntegrator._instance is not null)
                     lock (assets_processed) assets_processed.Enqueue(UnityAssetIntegrator._instance.ProcessQueue1(1000));
 
                 var assetTime = DateTime.Now;
                 var loopTime = DateTime.Now;
-
-                foreach (var update in updates)
-                {
-                    try
-                    {
-                        update.Update();
-                    }
-                    catch (Exception e)
-                    {
-                        Thundagun.Msg(e);
-                    }
-                }
-                
                 var updateTime = DateTime.Now;
 
                 if (focusedWorld != lastFocused)
@@ -517,12 +528,10 @@ public static class SynchronizationManager
     public static void OnResoniteUpdate()
     {
         ResoniteLastUpdateInterval = DateTime.Now - ResoniteStartTime;
-        lock (NewConnectors.RenderQueueProcessor.engineCompletionStatus)
-        {
-            NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted = true;
-        }
+        lock (Thundagun.engineCompletionStatus)
+            Thundagun.engineCompletionStatus.EngineCompleted = true;
 
-        while (NewConnectors.RenderQueueProcessor.engineCompletionStatus.EngineCompleted)
+        while (Thundagun.engineCompletionStatus.EngineCompleted && !Thundagun.Config.GetValue(Thundagun.RenderIncompleteUpdates))
         {
             Thread.Sleep(TimeSpan.FromMilliseconds(0.1));
         }
@@ -535,4 +544,9 @@ public static class SynchronizationManager
 
         ResoniteStartTime = DateTime.Now;
     }
+}
+
+public class EngineCompletionStatus
+{
+    public bool EngineCompleted = false;
 }

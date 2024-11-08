@@ -8,7 +8,6 @@ using UnityFrooxEngineRunner;
 namespace Thundagun.NewConnectors;
 public class RenderQueueProcessor : MonoBehaviour
 {
-    public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
     private static RenderQueueProcessor _instance;
     public static RenderQueueProcessor Instance
     {
@@ -39,18 +38,6 @@ public class RenderQueueProcessor : MonoBehaviour
 
     private void LateUpdate()
     {
-        lock (engineCompletionStatus)
-        {
-            if (Tasks.Count == 0 && engineCompletionStatus.EngineCompleted)
-            {
-                engineCompletionStatus.EngineCompleted = false;
-            }
-
-            if (!engineCompletionStatus.EngineCompleted)
-                return;
-        }
-
-
         lock (Tasks)
         {
             var renderingContext = RenderHelper.CurrentRenderingContext;
@@ -75,9 +62,4 @@ public class RenderQueueProcessor : MonoBehaviour
             }
         }
     }
-}
-
-public class EngineCompletionStatus
-{
-    public bool EngineCompleted = false;
 }
