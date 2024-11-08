@@ -4,10 +4,6 @@ Thundagun is a lightning fast performance mod for Resonite. It improves performa
 
 **Warning: This mod is a prerelease. It may contain bugs and other issues. Crashes and missing/buggy/jittery visuals are possible but are generally uncommon. Use at your own risk.**
 
-## Current Features
-
-- **Asynchronous Rendering**: Allows Unity to update independently of Resonite, increasing HMD framerate and protecting against stalls.
-
 ## Planned Features
 
 These are the features that haven't been implemented yet. If you want to help out, these would be a great place to start! You can also check out the Issues board for more ideas.
