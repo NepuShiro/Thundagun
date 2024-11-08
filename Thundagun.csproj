@@ -39,6 +39,9 @@
     <Reference Include="Elements.Assets">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/Elements.Assets.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>$(ResonitePath)Resonite_Data/Managed/UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
     <Reference Include="UnityFrooxEngineRunner">
       <HintPath>$(ResonitePath)Resonite_Data/Managed/UnityFrooxEngineRunner.dll</HintPath>
     </Reference>
