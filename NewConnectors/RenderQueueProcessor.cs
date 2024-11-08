@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using FrooxEngine;
 using UnityEngine;
 using UnityFrooxEngineRunner;
 
 namespace Thundagun.NewConnectors;
+
 public class RenderQueueProcessor : MonoBehaviour
 {
     public static EngineCompletionStatus engineCompletionStatus = new EngineCompletionStatus();
@@ -27,7 +29,25 @@ public class RenderQueueProcessor : MonoBehaviour
     public Task<byte[]> Enqueue(FrooxEngine.RenderSettings settings)
     {
         var task = new TaskCompletionSource<byte[]>();
-        var renderTask = new RenderTask(settings, task);
+        var renderTask = new RenderTask(new RenderSettings { 
+            position = settings.position,
+            rotation = settings.rotation,
+            size = settings.size,
+            textureFormat = settings.textureFormat,
+            projection = settings.projection,
+            fov = settings.fov,
+            ortographicSize = settings.ortographicSize,
+            clear = settings.clear,
+            clearColor = settings.clearColor,
+            near = settings.near,
+            far = settings.far,
+            renderObjects = settings.renderObjects.Select(s => ((SlotConnector)s.Connector)?.GeneratedGameObject).ToList(),
+            excludeObjects = settings.excludeObjects.Select(s => ((SlotConnector)s.Connector)?.GeneratedGameObject).ToList(),
+            renderPrivateUI = settings.renderPrivateUI,
+            postProcesing = settings.postProcesing,
+            screenspaceReflections = settings.screenspaceReflections,
+            customPostProcess = settings.customPostProcess,
+            }, task);
 
         lock (Tasks)
         {
