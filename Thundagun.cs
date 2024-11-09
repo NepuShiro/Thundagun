@@ -19,6 +19,7 @@ using UnityAssetIntegrator = Thundagun.NewConnectors.UnityAssetIntegrator;
 using WorldConnector = Thundagun.NewConnectors.WorldConnector;
 using Serilog;
 using System.IO;
+using Thundagun.NewConnectors.AssetConnectors;
 
 namespace Thundagun;
 
@@ -84,6 +85,21 @@ public class Thundagun : ResoniteMod
         PostProcessingInterface.SetupCamera = NewConnectors.CameraInitializer.SetupCamera;
 
         AsyncLogger.StartLogger();
+
+        void WorldAdded(World w)
+        {
+            if (!w.IsUserspace())
+            {
+                harmony.Patch(AccessTools.Method(typeof(DuplicableDisplay), "Update"), prefix: new HarmonyMethod(PatchDesktop.Prefix));
+                Engine.Current.WorldManager.WorldFocused -= WorldAdded;
+            }
+        }
+
+        // Patching DuplicableDisplay too early causes a Unity crash, so schedule it to be patched after the first non-userspace world is focused
+        Engine.Current.RunPostInit(() => 
+        { 
+            Engine.Current.WorldManager.WorldFocused += WorldAdded;
+        });
     }
 
     public static void PatchEngineTypes()
@@ -142,6 +158,15 @@ public class Thundagun : ResoniteMod
             }
         }
     }
+}
+
+class PatchDesktop
+{
+	public static bool Prefix(DuplicableDisplay __instance, uDesktopDuplication.Monitor monitor)
+	{
+		Thundagun.QueuePacket(new DesktopUpdatePacket(__instance, monitor));
+		return false;
+	}
 }
 
 [HarmonyPatch(typeof(FrooxEngineRunner))]
